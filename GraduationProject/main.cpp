@@ -15,7 +15,7 @@ int prevX = -1, prevY = -1; // Önceki fare konumu
 
 int SLE1;               // Kademe kutucuðunun baðlý olduðu metin kutusu
 int RTrackBar; // Renk kademeleri için track barlar
-int selectedColor = 0x000000; // Siyah
+int selectedColor = 0xFF0000; // Siyah
 int ColorPreviewFrame; // Renk önizleme çerçevesi
 ICBYTES ColorPreview;  // Renk önizleme alaný için bir matris
 
@@ -28,7 +28,7 @@ int frameOffsetY = 100; // Çerçeve Y baþlangýç konumu
 void ClearCanvas() {
     // Canvas'ý beyaz ile temizle
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
-    DisplayMatrix(FRM1, m); 
+    DisplayImage(FRM1, m); 
 }
 
 // GUI Baþlatma Fonksiyonu
@@ -123,21 +123,30 @@ void OnMouseLDown() {
 // Fare Hareket Ettiðinde
 void OnMouseMove(int x, int y) {
     if (isDrawing) {
+        // Gelen x ve y deðerlerini kullanarak pozisyonu normalize edin
         int currentX = ICG_GetMouseX() - frameOffsetX;
         int currentY = ICG_GetMouseY() - frameOffsetY;
 
+
+        // Matris sýnýrlarýný kontrol edin
         if (currentX >= 0 && currentX < m.X() && currentY >= 0 && currentY < m.Y()) {
             if (prevX >= 0 && prevY >= 0) {
+                // Çizgi çizin
                 DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
             }
 
+            // Önceki pozisyonu güncelleyin
             prevX = currentX;
             prevY = currentY;
 
-            DisplayMatrix(FRM1, m);
+           
         }
+        ICG_printf(MouseLogBox, "MouseMove - X: %d, Y: %d, FrameX: %d, FrameY: %d\n",
+            x, y, frameOffsetX, frameOffsetY);
+
     }
 }
+
 
 // Sol Fare Tuþunu Býraktýðýnýzda
 void OnMouseLUp() {
@@ -145,6 +154,11 @@ void OnMouseLUp() {
     prevX = -1;
     prevY = -1;
     LogMouseAction("Mouse Up", prevX, prevY);
+
+    // Matrisi ekrana yansýtýn
+    DisplayImage(FRM1, m);
+    ICG_printf(MouseLogBox, "Matrix size: %d x %d, Frame ID: %d\n", m.X(), m.Y(), FRM1);
+
 }
 
 
@@ -158,7 +172,7 @@ void SetupMouseHandlers() {
 // Canvas Baþlat
 void InitializeCanvas() {
     int canvasWidth = 800;
-    int canvasHeight = 600;
+    int canvasHeight = 400;
 
     // Çerçeve oluþtur
     FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, canvasWidth, canvasHeight);
@@ -169,6 +183,10 @@ void InitializeCanvas() {
 
     // Matris çerçeveye yansýtýlýyor
     DisplayMatrix(FRM1, m);  // Burada çerçeve ID'si kullanýlmalý
+    ICG_printf(MouseLogBox, "Matrix updated on frame %d\n", FRM1);
+    ICG_printf(MouseLogBox, "Matrix size: %d x %d, Frame ID: %d\n", m.X(), m.Y(), FRM1);
+
+
 }
 
 void NewFunc(){
