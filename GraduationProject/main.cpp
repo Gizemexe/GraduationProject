@@ -13,9 +13,13 @@ int FRM1;                 // Çizim alaný paneli
 bool isDrawing = false;   // Çizim durumunu takip etme
 int prevX = -1, prevY = -1; // Önceki fare konumu
 
+HANDLE hThread;      // Çizim iþ parçacýðý
+DWORD threadID;      // Ýþ parçacýðý kimliði
+bool stopDrawing = false; // Ýþ parçacýðýnýn durumu
+
 int SLE1;               // Kademe kutucuðunun baðlý olduðu metin kutusu
 int RTrackBar; // Renk kademeleri için track barlar
-int selectedColor = 0xFF0000; // Siyah
+int selectedColor = 0x000000; // Siyah
 int ColorPreviewFrame; // Renk önizleme çerçevesi
 ICBYTES ColorPreview;  // Renk önizleme alaný için bir matris
 
@@ -23,6 +27,15 @@ int MouseLogBox; // Fare hareketlerini göstermek için metin kutusu
 
 int frameOffsetX = 50; // Çerçeve X baþlangýç konumu
 int frameOffsetY = 100; // Çerçeve Y baþlangýç konumu
+
+int lineThickness = 1; // Varsayýlan olarak 1 piksel kalýnlýk
+
+int startX = -1, startY = -1; // Fare sürükleme baþlangýç pozisyonu
+int currentX = -1, currentY = -1; // Fare sürükleme geçerli pozisyonu
+
+enum Mode { NORMAL, ELLIPSE, RECTANGLE, FILLED_RECTANGLE, LINE };
+Mode activeMode = NORMAL; // Varsayýlan mod NORMAL
+
 
 // Çizim Alanýný Temizle
 void ClearCanvas() {
@@ -37,6 +50,15 @@ void ICGUI_Create() {
     ICG_MWTitle("Paint Uygulamasi - ICBYTES");  
 }
 
+void UpdateLineThickness(int value) {
+    lineThickness = value; // Kalýnlýk deðerini güncelle
+    ICG_printf(MouseLogBox, "Line thickness updated: %d\n", lineThickness);
+}
+
+void CreateThicknessTrackbar() {
+    ICG_TrackBarH(700, 30, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluðu
+}
+
 // Çizgi Çizme Fonksiyonu
 void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     int dx = abs(x2 - x1);
@@ -46,16 +68,18 @@ void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     int err = dx - dy;
 
     while (true) {
-        if (x1 >= 0 && x1 < canvas.X() && y1 >= 0 && y1 < canvas.Y()) {
-            canvas.B(x1, y1, 0) = color & 0xFF;        // Mavi
-            canvas.B(x1, y1, 1) = (color >> 8) & 0xFF; // Yeþil
-            canvas.B(x1, y1, 2) = (color >> 16) & 0xFF; // Kýrmýzý
-
+        // Pikseli çiz ve kalýnlýða göre çevresini doldur
+        for (int i = -lineThickness / 2; i <= lineThickness / 2; i++) {
+            for (int j = -lineThickness / 2; j <= lineThickness / 2; j++) {
+                int px = x1 + i;
+                int py = y1 + j;
+                if (px >= 0 && px < canvas.X() && py >= 0 && py < canvas.Y()) {
+                    canvas.B(px, py, 0) = color & 0xFF;        // Mavi
+                    canvas.B(px, py, 1) = (color >> 8) & 0xFF; // Yeþil
+                    canvas.B(px, py, 2) = (color >> 16) & 0xFF; // Kýrmýzý
+                }
+            }
         }
-        else {
-            ICG_printf(MouseLogBox, "Pixel out of bounds - X: %d, Y: %d\n", x1, y1);
-        }
-
 
         // Çizim tamamlandýysa döngüyü kýr
         if (x1 == x2 && y1 == y2) break;
@@ -69,25 +93,103 @@ void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
             err += dx;
             y1 += sy;
         }
-        ICG_printf(MouseLogBox, "Drawing Pixel - X: %d, Y: %d, Color: 0x%X\n", x1, y1, color);
-
-
     }
 }
 
 
 // Kademe Kutucuðu :Renk Bileþeni Güncelleme
 void UpdateColor(int kademe) {
-    selectedColor = (kademe << 16) | (kademe << 8) | kademe;
+    // Örnek olarak basit bir RGB renk paleti
+    int red = kademe * 10 % 256; // Renk tonlarýný farklý yap
+    int green = (kademe * 20) % 256;
+    int blue = (kademe * 30) % 256;
+
+    selectedColor = (red << 16) | (green << 8) | blue;
 
     // Güncellenen rengi göster
     ICG_SetWindowText(SLE1, "");
     ICG_printf(SLE1, "Selected Color: 0x%X\n", selectedColor);
     FillRect(ColorPreview, 0, 0, 50, 50, selectedColor);
     DisplayImage(ColorPreviewFrame, ColorPreview);
+}
 
+void UpdatePreview() {
+    FillRect(ColorPreview, 0, 0, 50, 50, selectedColor);
+    DisplayImage(ColorPreviewFrame, ColorPreview);
+    ICG_printf(MouseLogBox, "Selected color: 0x%X\n", selectedColor);
+}
+
+void SelectColor1() { selectedColor = 0x000000; UpdatePreview(); }
+void SelectColor2() { selectedColor = 0x6d6d6d; UpdatePreview(); }
+void SelectColor3() { selectedColor = 0xFF0000; UpdatePreview(); }
+void SelectColor4() { selectedColor = 0x500000; UpdatePreview(); }
+void SelectColor5() { selectedColor = 0xfc4e03; UpdatePreview(); }
+void SelectColor6() { selectedColor = 0xfce803; UpdatePreview(); }
+void SelectColor7() { selectedColor = 0x00FF00; UpdatePreview(); }
+void SelectColor8() { selectedColor = 0x00c4e2; UpdatePreview(); }
+void SelectColor9() { selectedColor = 0x0919ca; UpdatePreview(); }
+void SelectColor10() { selectedColor = 0x8209c0; UpdatePreview(); }
+//void SelectColor2() { selectedColor = 0x8209c0; UpdatePreview(); } 
+
+
+void CreateColorButtons() {
+
+    int CBTN1, CBTN2, CBTN3, CBTN4, CBTN5, CBTN6, CBTN7, CBTN8, CBTN9, CBTN10;
+
+    static ICBYTES Cbutonresmi, Cbutonresmi1, Cbutonresmi2, Cbutonresmi3, Cbutonresmi4, Cbutonresmi5, Cbutonresmi6, Cbutonresmi7, Cbutonresmi8, Cbutonresmi9;
+
+    CreateImage(Cbutonresmi, 50, 50, ICB_UINT);
+    Cbutonresmi = 0x000000;
+    CBTN1 = ICG_BitmapButton(300, 10, 25, 25, SelectColor1);
+    SetButtonBitmap(CBTN1, Cbutonresmi);
+
+    CreateImage(Cbutonresmi1, 50, 50, ICB_UINT);
+    Cbutonresmi1 = 0x6d6d6d;
+    CBTN2 = ICG_BitmapButton(330, 10, 25, 25, SelectColor2);
+    SetButtonBitmap(CBTN2, Cbutonresmi1);
+
+    CreateImage(Cbutonresmi2, 50, 50, ICB_UINT);
+    Cbutonresmi2 = 0xFF0000;
+    CBTN3 = ICG_BitmapButton(360, 10, 25, 25, SelectColor3);
+    SetButtonBitmap(CBTN3, Cbutonresmi2);
+
+    CreateImage(Cbutonresmi3, 50, 50, ICB_UINT);
+    Cbutonresmi3 = 0x500000;
+    CBTN4 = ICG_BitmapButton(390, 10, 25, 25, SelectColor4);
+    SetButtonBitmap(CBTN4, Cbutonresmi3);
+
+    CreateImage(Cbutonresmi4, 50, 50, ICB_UINT);
+    Cbutonresmi4 = 0xfc4e03;
+    CBTN5 = ICG_BitmapButton(420, 10, 25, 25, SelectColor5);
+    SetButtonBitmap(CBTN5, Cbutonresmi4);
+// Alt satýr 
+    CreateImage(Cbutonresmi5, 50, 50, ICB_UINT);
+    Cbutonresmi5 = 0xfce803;
+    CBTN6 = ICG_BitmapButton(300, 40, 25, 25, SelectColor6);
+    SetButtonBitmap(CBTN6, Cbutonresmi5);
+
+    CreateImage(Cbutonresmi6, 50, 50, ICB_UINT);
+    Cbutonresmi6 = 0x00FF00;
+    CBTN7 = ICG_BitmapButton(330, 40, 25, 25, SelectColor7);
+    SetButtonBitmap(CBTN7, Cbutonresmi6);
+
+    CreateImage(Cbutonresmi7, 50, 50, ICB_UINT);
+    Cbutonresmi7 = 0x00c4e2;
+    CBTN8 = ICG_BitmapButton(360, 40, 25, 25, SelectColor8);
+    SetButtonBitmap(CBTN8, Cbutonresmi7);
+
+    CreateImage(Cbutonresmi8, 50, 50, ICB_UINT);
+    Cbutonresmi8 = 0x0919ca;
+    CBTN9 = ICG_BitmapButton(390, 40, 25, 25, SelectColor9);
+    SetButtonBitmap(CBTN9, Cbutonresmi8);
+
+    CreateImage(Cbutonresmi9, 50, 50, ICB_UINT);
+    Cbutonresmi9 = 0x8209c0;
+    CBTN10 = ICG_BitmapButton(420, 40, 25, 25, SelectColor10);
+    SetButtonBitmap(CBTN10, Cbutonresmi9);
     
 }
+
 
 void InitializeColorPreview() {
     CreateImage(ColorPreview, 50, 50, ICB_UINT);
@@ -109,56 +211,76 @@ void LogMouseAction(const char* action, int x, int y) {
 }
 
 
-
 // Sol Fare Tuþuna Basýldýðýnda
 void OnMouseLDown() {
     isDrawing = true;
     prevX = ICG_GetMouseX() - frameOffsetX;
     prevY = ICG_GetMouseY() - frameOffsetY;
 
-    LogMouseAction("Mouse Down", prevX, prevY);
+    if (activeMode != NORMAL) {
+        startX = prevX;
+        startY = prevY;
+    }
 }
-
 
 // Fare Hareket Ettiðinde
 void OnMouseMove(int x, int y) {
     if (isDrawing) {
-        // Gelen x ve y deðerlerini kullanarak pozisyonu normalize edin
+        // Fare pozisyonunu al
         int currentX = ICG_GetMouseX() - frameOffsetX;
         int currentY = ICG_GetMouseY() - frameOffsetY;
 
+        // Önceki durumu temizleyin (yalnýzca önizlemeyi temizleyin)
+        ClearCanvas(); // Bu ana tuvaldeki geçmiþi temizler
+        DisplayImage(FRM1, m); // Önceki çizimleri geri yükler
 
-        // Matris sýnýrlarýný kontrol edin
-        if (currentX >= 0 && currentX < m.X() && currentY >= 0 && currentY < m.Y()) {
-            if (prevX >= 0 && prevY >= 0) {
-                // Çizgi çizin
-                DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
-            }
-
-            // Önceki pozisyonu güncelleyin
-            prevX = currentX;
-            prevY = currentY;
-
-           
+        // Þekil çizimi önizlemesi
+        if (activeMode == RECTANGLE) {
+            Rect(m, startX, startY, currentX, currentY, selectedColor);
         }
-        ICG_printf(MouseLogBox, "MouseMove - X: %d, Y: %d, FrameX: %d, FrameY: %d\n",
-            x, y, frameOffsetX, frameOffsetY);
+        else if (activeMode == FILLED_RECTANGLE) {
+            FillRect(m, startX, startY, currentX, currentY, selectedColor);
+        }
+        else if (activeMode == ELLIPSE) {
+            int radiusX = abs(currentX - startX) / 2;
+            int radiusY = abs(currentY - startY) / 2;
+            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+        }
+        else if (activeMode == LINE) {
+            Line(m, startX, startY, currentX, currentY, selectedColor);
+        }
 
+        // Çizimi ekranda göster
+        DisplayImage(FRM1, m);
     }
 }
 
-
 // Sol Fare Tuþunu Býraktýðýnýzda
 void OnMouseLUp() {
-    isDrawing = false;
-    prevX = -1;
-    prevY = -1;
-    LogMouseAction("Mouse Up", prevX, prevY);
+    if (isDrawing) {
+        isDrawing = false; // Çizim tamamlandý
+        int currentX = ICG_GetMouseX() - frameOffsetX;
+        int currentY = ICG_GetMouseY() - frameOffsetY;
 
-    // Matrisi ekrana yansýtýn
-    DisplayImage(FRM1, m);
-    ICG_printf(MouseLogBox, "Matrix size: %d x %d, Frame ID: %d\n", m.X(), m.Y(), FRM1);
+        // Son þekli ana tuvale kalýcý olarak çiz
+        if (activeMode == RECTANGLE) {
+            Rect(m, startX, startY, currentX, currentY, selectedColor);
+        }
+        else if (activeMode == FILLED_RECTANGLE) {
+            FillRect(m, startX, startY, currentX, currentY, selectedColor);
+        }
+        else if (activeMode == ELLIPSE) {
+            int radiusX = abs(currentX - startX) / 2;
+            int radiusY = abs(currentY - startY) / 2;
+            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+        }
+        else if (activeMode == LINE) {
+            DrawLine(m, startX, startY, currentX, currentY, selectedColor);
+        }
 
+        // Ana tuvali güncelle
+        DisplayImage(FRM1, m);
+    }
 }
 
 
@@ -193,7 +315,7 @@ void NewFunc(){
     ICG_DestroyWidget(FRM1);
 
     // Yeni çerçeve oluþtur (800x600 boyutunda)
-    FRM1 = ICG_FrameMedium(0, 0, 800, 600);
+    FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, 800, 400);
 
     // Canvas'ý beyaza sýfýrla
     m = FRM1;
@@ -297,10 +419,32 @@ void ExitFunc(){
 void CutFunc(){}
 void CopyFunc(){}
 void PasteFunc(){}
-void Elipsee(){}
-void Rectt(){}
-void Rectfil(){}
-void Linee(){}
+void Elipsee() {
+    activeMode = ELLIPSE;  // Elips modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Ellipse mode activated.\n");
+}
+
+void NormalMode() {
+    activeMode = NORMAL;  // Normal modu etkinleþtir
+    ICG_printf(MouseLogBox, "Normal mode activated.\n");
+}
+void Rectt(){
+    activeMode = RECTANGLE;  // Çerçeveli dikdörtgen modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Rectangle mode activated.\n");
+}
+void Rectfil(){
+    activeMode = FILLED_RECTANGLE;  // Dolu dikdörtgen modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Filled Rectangle mode activated.\n");
+}
+void Linee(){
+    activeMode = LINE;  // Çizgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Line mode activated.\n");
+}
+
+void CreateModeButtons() {
+    ICG_Button(700, 70, 80, 30, "Normal", NormalMode);
+    //ICG_Button(700, 110, 80, 30, "Ellipse", Elipsee);
+}
 
 void ToggleFullScreen() {
     static bool isFullScreen = false; // Tam ekran modunu takip eder
@@ -368,67 +512,43 @@ void CreateDrawingButtons() {
     // BTN1: Elips
     CreateImage(butonresmi, 50, 50, ICB_UINT);
     butonresmi = 0xffffff;
-    BTN1 = ICG_BitmapButton(300, 10, 40, 40, Elipsee);
+    BTN1 = ICG_BitmapButton(450, 10, 40, 40, Elipsee);
     Ellipse(butonresmi, 9, 8, 17, 17, 0x0000000);
     Ellipse(butonresmi, 10, 9, 16, 16, 0x0000000);
     Ellipse(butonresmi, 11, 10, 15, 15, 0x0000000);
-    for (int y = 1; y <= butonresmi.Y(); y++) {
-        for (int x = 1; x <= butonresmi.X(); x++) {
-            butonresmi.U(x, y) -= 0x030000 * y;
-        }
-    }
+    
     SetButtonBitmap(BTN1, butonresmi);
 
     // BTN2: Dolu Dikdörtgen
     CreateImage(butonresmi1, 50, 50, ICB_UINT);
     butonresmi1 = 0xffffff;
-    BTN2 = ICG_BitmapButton(350, 10, 40, 40, Rectt);
+    BTN2 = ICG_BitmapButton(500, 10, 40, 40, Rectfil);
     FillRect(butonresmi1, 10, 9, 30, 30, 0x0000000);
-    for (int y = 1; y <= butonresmi1.Y(); y++) {
-        for (int x = 1; x <= butonresmi1.X(); x++) {
-            butonresmi1.U(x, y) -= 0x030000 * y;
-        }
-    }
     SetButtonBitmap(BTN2, butonresmi1);
 
     // BTN3: Çerçeve Dikdörtgen
     CreateImage(butonresmi2, 50, 50, ICB_UINT);
     butonresmi2 = 0xffffff;
-    BTN3 = ICG_BitmapButton(400, 10, 40, 40, Rectfil);
+    BTN3 = ICG_BitmapButton(550, 10, 40, 40, Rectt);
     Rect(butonresmi2, 8, 9, 30, 30, 0x0000000);
     Rect(butonresmi2, 9, 10, 30, 30, 0x0000000);
     Rect(butonresmi2, 10, 11, 30, 30, 0x0000000);
-    for (int y = 1; y <= butonresmi2.Y(); y++) {
-        for (int x = 1; x <= butonresmi2.X(); x++) {
-            butonresmi2.U(x, y) -= 0x030000 * y;
-        }
-    }
     SetButtonBitmap(BTN3, butonresmi2);
 
     // BTN4: Çizgi
     CreateImage(butonresmi3, 50, 50, ICB_UINT);
     butonresmi3 = 0xffffff;
-    BTN4 = ICG_BitmapButton(450, 10, 40, 40, Linee);
+    BTN4 = ICG_BitmapButton(600, 10, 40, 40, Linee);
     Line(butonresmi3, 10, 11, 40, 40, 0x0000000);
     Line(butonresmi3, 11, 12, 40, 40, 0x0000000);
     Line(butonresmi3, 12, 13, 40, 40, 0x0000000);
-    for (int y = 1; y <= butonresmi3.Y(); y++) {
-        for (int x = 1; x <= butonresmi3.X(); x++) {
-            butonresmi3.U(x, y) -= 0x030000 * y;
-        }
-    }
     SetButtonBitmap(BTN4, butonresmi3);
 
     // BTN5: Artý Ýþareti
     CreateImage(butonresmi4, 50, 50, ICB_UINT);
     butonresmi4 = 0xffffff;
-    BTN5 = ICG_BitmapButton(500, 10, 40, 40, Linee);
+    BTN5 = ICG_BitmapButton(650, 10, 40, 40, Linee);
     MarkPlus(butonresmi4, 25, 25, 10, 0);
-    for (int y = 1; y <= butonresmi4.Y(); y++) {
-        for (int x = 1; x <= butonresmi4.X(); x++) {
-            butonresmi4.U(x, y) -= 0x030000 * y;
-        }
-    }
     SetButtonBitmap(BTN5, butonresmi4);
 }
 
@@ -446,6 +566,9 @@ void ICGUI_main() {
     CreateMenuItems();          // Menüleri oluþtur
     InitializeCanvas();    // Çizim alanýný baþlat
     InitializeColorPreview(); // Renk Paletini Ekle
+    CreateColorButtons();       // Renk seçici butonlarý ekle
+    CreateThicknessTrackbar();  // Çizgi kalýnlýðý için trackbar ekle
+    CreateModeButtons();  // Mod butonlarýný ekle
     SetupMouseHandlers(); // Fare olaylarýný ayarla
     CreateDrawingButtons(); // Çizim butonlarýný oluþtur
 
@@ -453,6 +576,6 @@ void ICGUI_main() {
     MouseLogBox = ICG_MLEditSunken(10, 500, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
 
     // Clear butonu 
-    ICG_Button(810, 20, 80, 30, "Clear", ClearCanvas);
+    ICG_Button(900, 60, 80, 30, "Clear", ClearCanvas);
 
 }
