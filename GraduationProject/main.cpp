@@ -13,9 +13,11 @@ int FRM1;                 // Çizim alaný paneli
 bool isDrawing = false;   // Çizim durumunu takip etme
 int prevX = -1, prevY = -1; // Önceki fare konumu
 
-HANDLE hThread;      // Çizim iþ parçacýðý
-DWORD threadID;      // Ýþ parçacýðý kimliði
-bool stopDrawing = false; // Ýþ parçacýðýnýn durumu
+HANDLE drawThread = NULL;    // Çizim iþ parçacýðý
+DWORD drawThreadID;          // Ýþ parçacýðý ID'si
+bool threadStopFlag = false; // Ýþ parçacýðýný durdurma bayraðý
+
+
 
 int SLE1;               // Kademe kutucuðunun baðlý olduðu metin kutusu
 int RTrackBar; // Renk kademeleri için track barlar
@@ -39,10 +41,15 @@ Mode activeMode = NORMAL; // Varsayýlan mod NORMAL
 
 // Çizim Alanýný Temizle
 void ClearCanvas() {
-    // Canvas'ý beyaz ile temizle
-    FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
-    DisplayImage(FRM1, m); 
+    // Eðer zaten beyazsa tekrar temizlemeye gerek yok
+    static bool isCleared = false;
+    if (!isCleared) {
+        FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
+        isCleared = true;
+    }
+    DisplayImage(FRM1, m);
 }
+
 
 // GUI Baþlatma Fonksiyonu
 void ICGUI_Create() {
@@ -61,40 +68,29 @@ void CreateThicknessTrackbar() {
 
 // Çizgi Çizme Fonksiyonu
 void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
-    int dx = abs(x2 - x1);
-    int dy = abs(y2 - y1);
-    int sx = (x1 < x2) ? 1 : -1;
-    int sy = (y1 < y2) ? 1 : -1;
-    int err = dx - dy;
+    int dx = abs(x2 - x1), dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1, sy = (y1 < y2) ? 1 : -1, err = dx - dy;
 
     while (true) {
-        // Pikseli çiz ve kalýnlýða göre çevresini doldur
         for (int i = -lineThickness / 2; i <= lineThickness / 2; i++) {
             for (int j = -lineThickness / 2; j <= lineThickness / 2; j++) {
                 int px = x1 + i;
                 int py = y1 + j;
-                if (px >= 0 && px < canvas.X() && py >= 0 && py < canvas.Y()) {
-                    canvas.B(px, py, 0) = color & 0xFF;        // Mavi
-                    canvas.B(px, py, 1) = (color >> 8) & 0xFF; // Yeþil
-                    canvas.B(px, py, 2) = (color >> 16) & 0xFF; // Kýrmýzý
+                if (px >= 0 && py >= 0 && px < canvas.X() && py < canvas.Y()) {
+                    canvas.B(px, py, 0) = color & 0xFF;
+                    canvas.B(px, py, 1) = (color >> 8) & 0xFF;
+                    canvas.B(px, py, 2) = (color >> 16) & 0xFF;
                 }
             }
         }
-
-        // Çizim tamamlandýysa döngüyü kýr
         if (x1 == x2 && y1 == y2) break;
-
         int e2 = 2 * err;
-        if (e2 > -dy) {
-            err -= dy;
-            x1 += sx;
-        }
-        if (e2 < dx) {
-            err += dx;
-            y1 += sy;
-        }
+        if (e2 > -dy) { err -= dy; x1 += sx; }
+        if (e2 < dx) { err += dx; y1 += sy; }
     }
 }
+
+
 
 
 // Kademe Kutucuðu :Renk Bileþeni Güncelleme
@@ -210,6 +206,48 @@ void LogMouseAction(const char* action, int x, int y) {
     }
 }
 
+HANDLE drawEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+DWORD WINAPI DrawingThread(LPVOID param) {
+    while (!threadStopFlag) {
+        WaitForSingleObject(drawEvent, INFINITE); // Olay tetiklenene kadar bekle
+        if (threadStopFlag) break;
+
+        // Çizim iþlemleri
+        if (isDrawing && prevX >= 0 && prevY >= 0) {
+            int currentX = ICG_GetMouseX() - frameOffsetX;
+            int currentY = ICG_GetMouseY() - frameOffsetY;
+            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
+            DisplayImage(FRM1, m);
+            prevX = currentX;
+            prevY = currentY;
+        }
+    }
+    return 0;
+}
+
+
+void StartDrawingThread() {
+    if (!drawThread || threadStopFlag) {
+        threadStopFlag = false;
+        drawThread = CreateThread(NULL, 0, DrawingThread, NULL, 0, &drawThreadID);
+    }
+}
+
+void SignalDrawingThread() {
+    SetEvent(drawEvent); // Ýþ parçacýðýný tetikle
+}
+
+void StopDrawingThread() {
+    if (drawThread) {
+        threadStopFlag = true;
+        SignalDrawingThread(); // Ýþ parçacýðýný uyar
+        WaitForSingleObject(drawThread, INFINITE);
+        CloseHandle(drawThread);
+        drawThread = NULL;
+    }
+}
+
 
 // Sol Fare Tuþuna Basýldýðýnda
 void OnMouseLDown() {
@@ -217,7 +255,10 @@ void OnMouseLDown() {
     prevX = ICG_GetMouseX() - frameOffsetX;
     prevY = ICG_GetMouseY() - frameOffsetY;
 
-    if (activeMode != NORMAL) {
+    if (activeMode == NORMAL) {
+        StartDrawingThread(); // Serbest çizim için thread baþlat
+    }
+    else {
         startX = prevX;
         startY = prevY;
     }
@@ -225,44 +266,52 @@ void OnMouseLDown() {
 
 // Fare Hareket Ettiðinde
 void OnMouseMove(int x, int y) {
+    int currentX = ICG_GetMouseX() - frameOffsetX;
+    int currentY = ICG_GetMouseY() - frameOffsetY;
+
     if (isDrawing) {
-        // Fare pozisyonunu al
-        int currentX = ICG_GetMouseX() - frameOffsetX;
-        int currentY = ICG_GetMouseY() - frameOffsetY;
+        if (activeMode == NORMAL) {
+            // Serbest çizim modu
+            if (prevX >= 0 && prevY >= 0) {
+                DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
+                DisplayImage(FRM1, m); // Çizimi kalýcý olarak ana tuvale uygula
+            }
+            prevX = currentX;
+            prevY = currentY;
+        }
+        else {
+            // Dinamik þekil çizim modu
+            ClearCanvas(); // Tuvali temizle
+            DisplayImage(FRM1, m); // Önceki çizimleri yeniden yükle
 
-        // Önceki durumu temizleyin (yalnýzca önizlemeyi temizleyin)
-        ClearCanvas(); // Bu ana tuvaldeki geçmiþi temizler
-        DisplayImage(FRM1, m); // Önceki çizimleri geri yükler
+            if (activeMode == RECTANGLE) {
+                Rect(m, startX, startY, currentX, currentY, selectedColor);
+            }
+            else if (activeMode == FILLED_RECTANGLE) {
+                FillRect(m, startX, startY, currentX, currentY, selectedColor);
+            }
+            else if (activeMode == ELLIPSE) {
+                int radiusX = abs(currentX - startX) / 2;
+                int radiusY = abs(currentY - startY) / 2;
+                Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+            }
+            else if (activeMode == LINE) {
+                DrawLine(m, startX, startY, currentX, currentY, selectedColor);
+            }
 
-        // Þekil çizimi önizlemesi
-        if (activeMode == RECTANGLE) {
-            Rect(m, startX, startY, currentX, currentY, selectedColor);
+            DisplayImage(FRM1, m); // Geçici çizimi ekrana göster
         }
-        else if (activeMode == FILLED_RECTANGLE) {
-            FillRect(m, startX, startY, currentX, currentY, selectedColor);
-        }
-        else if (activeMode == ELLIPSE) {
-            int radiusX = abs(currentX - startX) / 2;
-            int radiusY = abs(currentY - startY) / 2;
-            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
-        }
-        else if (activeMode == LINE) {
-            Line(m, startX, startY, currentX, currentY, selectedColor);
-        }
-
-        // Çizimi ekranda göster
-        DisplayImage(FRM1, m);
     }
 }
 
 // Sol Fare Tuþunu Býraktýðýnýzda
 void OnMouseLUp() {
-    if (isDrawing) {
-        isDrawing = false; // Çizim tamamlandý
+    isDrawing = false;
+
+    if (activeMode != NORMAL) {
         int currentX = ICG_GetMouseX() - frameOffsetX;
         int currentY = ICG_GetMouseY() - frameOffsetY;
 
-        // Son þekli ana tuvale kalýcý olarak çiz
         if (activeMode == RECTANGLE) {
             Rect(m, startX, startY, currentX, currentY, selectedColor);
         }
@@ -277,11 +326,13 @@ void OnMouseLUp() {
         else if (activeMode == LINE) {
             DrawLine(m, startX, startY, currentX, currentY, selectedColor);
         }
-
-        // Ana tuvali güncelle
-        DisplayImage(FRM1, m);
+        DisplayImage(FRM1, m); // Çizimi kalýcý hale getir
     }
+
+    StopDrawingThread(); // Thread'i durdur
+    prevX = prevY = -1;
 }
+
 
 
 // Fare Olaylarýný Ayarlama
@@ -322,6 +373,13 @@ void NewFunc(){
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
     DisplayMatrix(FRM1, m);
 }
+
+void CleanupResources() {
+    StopDrawingThread(); // Thread'i durdur
+    Free(m); // Belleði serbest býrak
+    Free(ColorPreview); // Renk önizleme matrisi belleðini serbest býrak
+}
+
 
 void OpenFunc(){
 
@@ -413,7 +471,7 @@ void SaveFunc(){
 }
 
 void ExitFunc(){
-
+    CleanupResources();
     PostQuitMessage(0);  // Programdan güvenli bir þekilde çýkýþ yapar
 }
 void CutFunc(){}
@@ -551,6 +609,7 @@ void CreateDrawingButtons() {
     MarkPlus(butonresmi4, 25, 25, 10, 0);
     SetButtonBitmap(BTN5, butonresmi4);
 }
+
 
 // Ana GUI Fonksiyonu
 void ICGUI_main() {
