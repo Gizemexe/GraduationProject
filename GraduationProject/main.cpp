@@ -230,7 +230,6 @@ void CreateColorButtons() {
 
 }
 
-
 void InitializeColorPreview() {
     CreateImage(ColorPreview, 50, 50, ICB_UINT);
     SLE1 = ICG_SLEditBorder(10, 10, 200, 25, "0");
@@ -240,6 +239,37 @@ void InitializeColorPreview() {
     ColorPreview = 0xff00;
     DisplayImage(ColorPreviewFrame, ColorPreview);
 }
+
+void UpdateCombinedCanvas() {
+    ICBYTES combinedCanvas;
+    CreateMatrix(combinedCanvas, m.X(), m.Y(), 3, ICB_UCHAR);
+
+    // Ana canvas'ý birleþik canvas'a kopyala
+    Copy(m, 0, 0, m.X(), m.Y(), combinedCanvas);
+
+    // Geçici canvas'ý ekle
+    for (int y = 0; y < combinedCanvas.Y(); ++y) {
+        for (int x = 0; x < combinedCanvas.X(); ++x) {
+            if (!(tempCanvas.B(x, y, 0) == 0xFF &&
+                tempCanvas.B(x, y, 1) == 0xFF &&
+                tempCanvas.B(x, y, 2) == 0xFF)) {
+                combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 0);
+                combinedCanvas.B(x, y, 1) = tempCanvas.B(x, y, 1);
+                combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 2);
+            }
+        }
+    }
+
+    // Birleþik canvas'ý ekrana yansýt
+    DisplayImage(FRM1, combinedCanvas);
+    Free(combinedCanvas);
+}
+
+
+
+
+
+
 
 void LogMouseAction(const char* action, int x, int y) {
     if (x < 0 || x >= m.X() || y < 0 || y >= m.Y()) {
@@ -265,109 +295,88 @@ void OnMouseLDown() {
 
 // Fare Hareket Ettiðinde
 void OnMouseMove(int x, int y) {
-    int currentX = ICG_GetMouseX() - frameOffsetX;
-    int currentY = ICG_GetMouseY() - frameOffsetY;
+    if (!isDrawing) return;
 
-    if (isDrawing) {
-        if (activeMode == NORMAL) {
-            // Serbest çizim modu
-            if (prevX >= 0 && prevY >= 0) {
-                DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
-                DisplayImage(FRM1, m); // Çizimi kalýcý olarak ana tuvale uygula
-            }
-            prevX = currentX;
-            prevY = currentY;
+    currentX = ICG_GetMouseX() - frameOffsetX;
+    currentY = ICG_GetMouseY() - frameOffsetY;
+
+    if (activeMode == NORMAL) {
+        // Serbest çizim modu
+        if (prevX >= 0 && prevY >= 0) {
+            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor); // Ana canvas'a çiz
+            DisplayImage(FRM1, m); // Ana canvas'ý ekrana yansýt
         }
-        else {
-            // Geçici tuvali sýfýrla (beyaza boyayarak temizle)
-            FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+        prevX = currentX;
+        prevY = currentY;
+    }
+    else {
+        // Geçici canvas'ý temizle ve þekli geçici olarak çiz
+        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
 
-            // Geçici tuvale þekil çiz
-            if (activeMode == RECTANGLE) {
-                Rect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
-            }
-            else if (activeMode == FILLED_RECTANGLE) {
-                FillRect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
-            }
-            else if (activeMode == ELLIPSE) {
-                int radiusX = abs(currentX - startX) / 2;
-                int radiusY = abs(currentY - startY) / 2;
-                Ellipse(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
-            }
-            else if (activeMode == LINE) {
-                DrawLine(tempCanvas, startX, startY, currentX, currentY, selectedColor);
-            }
-
-            // Geçici tuval ve ana tuvali birleþtir
-            ICBYTES combinedCanvas;
-            CreateMatrix(combinedCanvas, m.X(), m.Y(), 3, ICB_UCHAR);
-
-            // Ana tuvali birleþik tuvale kopyala
-            Copy(m, 0, 0, m.X(), m.Y(), combinedCanvas);
-
-            // Geçici tuvali birleþtirirken karýþmayý önlemek için yalnýzca geçici deðiþiklikleri ekle
-            for (int y = 0; y < combinedCanvas.Y(); ++y) {
-                for (int x = 0; x < combinedCanvas.X(); ++x) {
-                    // Geçici tuvalde beyaz olmayan piksel varsa, birleþik tuvale ekle
-                    if (!(tempCanvas.B(x, y, 0) == 0xFF &&
-                        tempCanvas.B(x, y, 1) == 0xFF &&
-                        tempCanvas.B(x, y, 2) == 0xFF)) {
-                        combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 0);
-                        combinedCanvas.B(x, y, 1) = tempCanvas.B(x, y, 1);
-                        combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 2);
-                    }
-                }
-            }
-
-            // Ekrana birleþik görüntüyü yansýt
-            DisplayImage(FRM1, combinedCanvas);
-
-            // Bellek serbest býrakma
-            Free(combinedCanvas);
+        switch (activeMode) {
+        case RECTANGLE:
+            Rect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case FILLED_RECTANGLE:
+            FillRect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case ELLIPSE: {
+            int radiusX = abs(currentX - startX) / 2;
+            int radiusY = abs(currentY - startY) / 2;
+            Ellipse(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+            break;
+        }
+        case LINE:
+            DrawLine(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            break;
+        default:
+            break;
         }
 
+        // Geçici canvas'ý ana canvas ile birleþtir ve ön izleme olarak göster
+        UpdateCombinedCanvas();
     }
 }
+
 
 // Sol Fare Tuþunu Býraktýðýnýzda
 void OnMouseLUp() {
-    if (isDrawing) {
-        isDrawing = false;
+    if (!isDrawing) return;
 
-        // Geçerli fare konumlarýný al
-        int endX = ICG_GetMouseX() - frameOffsetX;
-        int endY = ICG_GetMouseY() - frameOffsetY;
+    isDrawing = false;
 
-        if (activeMode != NORMAL) {
-            // Geçici çizimi ana tuvale kalýcý olarak uygula
-            if (activeMode == RECTANGLE) {
-                Rect(m, startX, startY, endX, endY, selectedColor);
-            }
-            else if (activeMode == FILLED_RECTANGLE) {
-                FillRect(m, startX, startY, endX, endY, selectedColor);
-            }
-            else if (activeMode == ELLIPSE) {
-                int radiusX = abs(endX - startX) / 2;
-                int radiusY = abs(endY - startY) / 2;
-                Ellipse(m, (startX + endX) / 2, (startY + endY) / 2, radiusX, radiusY, selectedColor);
-            }
-            else if (activeMode == LINE) {
-                DrawLine(m, startX, startY, endX, endY, selectedColor);
-            }
+    if (activeMode != NORMAL) {
+        // Geçici canvas'ý ana canvas'a uygulayarak kalýcý hale getir
+        switch (activeMode) {
+        case RECTANGLE:
+            Rect(m, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case FILLED_RECTANGLE:
+            FillRect(m, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case ELLIPSE: {
+            int radiusX = abs(currentX - startX) / 2;
+            int radiusY = abs(currentY - startY) / 2;
+            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+            break;
+        }
+        case LINE:
+            DrawLine(m, startX, startY, currentX, currentY, selectedColor);
+            break;
+        default:
+            break;
         }
 
-        // Geçici tuvali temizle
-        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
-
-        // Ana tuvali ekrana yansýt
+        // Ana canvas'ý güncelle ve ekrana yansýt
         DisplayImage(FRM1, m);
-        prevX = -1;
-        prevY = -1;
+
+        // Geçici canvas'ý sýfýrla
+        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
     }
+
+    prevX = -1;
+    prevY = -1;
 }
-
-
-
 
 // Fare Olaylarýný Ayarlama
 void SetupMouseHandlers() {
@@ -379,21 +388,19 @@ void SetupMouseHandlers() {
 // Canvas Baþlat
 void InitializeCanvas() {
     int canvasWidth = 800;
-    int canvasHeight = 400;
+    int canvasHeight = 600;
 
-    // Çerçeve oluþtur
-    FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, canvasWidth, canvasHeight);
-
-    // Matris oluþtur ve beyaza ayarla
+    // Ana canvas
     CreateMatrix(m, canvasWidth, canvasHeight, 3, ICB_UCHAR);
     FillRect(m, 0, 0, canvasWidth, canvasHeight, 0xFFFFFF);
 
-    // Matris çerçeveye yansýtýlýyor
-    DisplayImage(FRM1, m);  // Burada çerçeve ID'si kullanýlmalý
-    ICG_printf(MouseLogBox, "Matrix updated on frame %d\n", FRM1);
-    ICG_printf(MouseLogBox, "Matrix size: %d x %d, Frame ID: %d\n", m.X(), m.Y(), FRM1);
+    // Geçici canvas
+    CreateMatrix(tempCanvas, canvasWidth, canvasHeight, 3, ICB_UCHAR);
+    FillRect(tempCanvas, 0, 0, canvasWidth, canvasHeight, 0xFFFFFF);
 
-
+    // Çerçeve oluþtur ve ekrana yansýt
+    FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, canvasWidth, canvasHeight);
+    DisplayImage(FRM1, m);
 }
 
 void NewFunc() {
