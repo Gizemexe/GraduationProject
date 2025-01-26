@@ -33,7 +33,8 @@ int lineThickness = 1; // Varsayýlan olarak 1 piksel kalýnlýk
 int startX = -1, startY = -1; // Fare sürükleme baþlangýç pozisyonu
 int currentX = -1, currentY = -1; // Fare sürükleme geçerli pozisyonu
 
-enum Mode { NORMAL, ELLIPSE, RECTANGLE, FILLED_RECTANGLE, LINE };
+enum Mode { NORMAL, ELLIPSE, RECTANGLE, FILLED_RECTANGLE, LINE, CIRCLE, FILLED_CIRCLE, TRIANGLE, PLUS_MARK, ERASER };
+
 Mode activeMode = NORMAL; // Varsayýlan mod NORMAL
 
 struct DrawParams {
@@ -66,6 +67,11 @@ void UpdateLineThickness(int value) {
 
 void CreateThicknessTrackbar() {
     ICG_TrackBarH(700, 30, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluðu
+}
+
+void EraserMode() {
+    activeMode = ERASER;  // Silgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Eraser mode activated.\n");
 }
 
 // Çizgi Çizme Fonksiyonu
@@ -136,6 +142,11 @@ DWORD WINAPI DrawShape(LPVOID lpParam) {
     return 0;
 }
 
+void DrawTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    DrawLine(canvas, x1, y1, x2, y2, color);
+    DrawLine(canvas, x2, y2, x3, y3, color);
+    DrawLine(canvas, x3, y3, x1, y1, color);
+}
 
 // Kademe Kutucuðu :Renk Bileþeni Güncelleme
 void UpdateColor(int kademe) {
@@ -159,17 +170,21 @@ void UpdatePreview() {
     ICG_printf(MouseLogBox, "Selected color: 0x%X\n", selectedColor);
 }
 
-void SelectColor1() { selectedColor = 0x000000; UpdatePreview(); }
-void SelectColor2() { selectedColor = 0x6d6d6d; UpdatePreview(); }
-void SelectColor3() { selectedColor = 0xFF0000; UpdatePreview(); }
-void SelectColor4() { selectedColor = 0x500000; UpdatePreview(); }
-void SelectColor5() { selectedColor = 0xfc4e03; UpdatePreview(); }
-void SelectColor6() { selectedColor = 0xfce803; UpdatePreview(); }
-void SelectColor7() { selectedColor = 0x00FF00; UpdatePreview(); }
-void SelectColor8() { selectedColor = 0x00c4e2; UpdatePreview(); }
-void SelectColor9() { selectedColor = 0x0919ca; UpdatePreview(); }
-void SelectColor10() { selectedColor = 0x8209c0; UpdatePreview(); }
-//void SelectColor2() { selectedColor = 0x8209c0; UpdatePreview(); } 
+int ConvertToBGR(int color) {
+    return ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF);
+}
+
+void SelectColor1() { selectedColor = ConvertToBGR(0x000000); UpdatePreview(); } // Siyah
+void SelectColor2() { selectedColor = ConvertToBGR(0x6d6d6d); UpdatePreview(); } // Gri
+void SelectColor3() { selectedColor = ConvertToBGR(0xFF0000); UpdatePreview(); } // Kýrmýzý
+void SelectColor4() { selectedColor = ConvertToBGR(0x500000); UpdatePreview(); } // Koyu Kýrmýzý
+void SelectColor5() { selectedColor = ConvertToBGR(0xfc4e03); UpdatePreview(); } // Turuncu
+void SelectColor6() { selectedColor = ConvertToBGR(0xfce803); UpdatePreview(); } // Sarý
+void SelectColor7() { selectedColor = ConvertToBGR(0x00FF00); UpdatePreview(); } // Yeþil
+void SelectColor8() { selectedColor = ConvertToBGR(0x00c4e2); UpdatePreview(); } // Açýk Mavi
+void SelectColor9() { selectedColor = ConvertToBGR(0x0919ca); UpdatePreview(); } // Mavi
+void SelectColor10() { selectedColor = ConvertToBGR(0x8209c0); UpdatePreview(); } // Mor
+
 
 
 void CreateColorButtons() {
@@ -265,12 +280,6 @@ void UpdateCombinedCanvas() {
     Free(combinedCanvas);
 }
 
-
-
-
-
-
-
 void LogMouseAction(const char* action, int x, int y) {
     if (x < 0 || x >= m.X() || y < 0 || y >= m.Y()) {
         ICG_printf(MouseLogBox, "%s - Out of bounds - X: %d, Y: %d\n", action, x, y);
@@ -300,6 +309,16 @@ void OnMouseMove(int x, int y) {
     currentX = ICG_GetMouseX() - frameOffsetX;
     currentY = ICG_GetMouseY() - frameOffsetY;
 
+    if (activeMode == ERASER) {
+        if (prevX >= 0 && prevY >= 0) {
+            DrawLine(m, prevX, prevY, currentX, currentY, 0xFFFFFF); // Arka plan rengini kullan (beyaz)
+            DisplayImage(FRM1, m);
+        }
+        prevX = currentX;
+        prevY = currentY;
+        return;
+    }
+
     if (activeMode == NORMAL) {
         // Serbest çizim modu
         if (prevX >= 0 && prevY >= 0) {
@@ -315,7 +334,7 @@ void OnMouseMove(int x, int y) {
 
         switch (activeMode) {
         case RECTANGLE:
-            Rect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            Rect(m, startX, startY, currentX, currentY, selectedColor);
             break;
         case FILLED_RECTANGLE:
             FillRect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
@@ -328,6 +347,18 @@ void OnMouseMove(int x, int y) {
         }
         case LINE:
             DrawLine(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case CIRCLE:
+            Circle(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            break;
+        case FILLED_CIRCLE:
+            FillCircle(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            break;
+        case TRIANGLE:
+            DrawTriangle(tempCanvas, startX, startY, currentX, startY, (startX + currentX) / 2, currentY, selectedColor);
+            break;
+        case PLUS_MARK:
+            MarkPlus(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
             break;
         default:
             break;
@@ -354,14 +385,27 @@ void OnMouseLUp() {
         case FILLED_RECTANGLE:
             FillRect(m, startX, startY, currentX, currentY, selectedColor);
             break;
-        case ELLIPSE: {
-            int radiusX = abs(currentX - startX) / 2;
-            int radiusY = abs(currentY - startY) / 2;
-            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+        case ELLIPSE:
+            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, abs(currentY - startY) / 2, selectedColor);
             break;
-        }
         case LINE:
             DrawLine(m, startX, startY, currentX, currentY, selectedColor);
+            break;
+        case CIRCLE:
+            Circle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            break;
+        case FILLED_CIRCLE:
+            FillCircle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX), selectedColor);
+            break;
+        case TRIANGLE:
+            DrawTriangle(m, startX, startY, currentX, startY, (startX + currentX) / 2, currentY, selectedColor);
+            break;
+        case PLUS_MARK:
+            MarkPlus(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            break;
+        case ERASER:
+            activeMode = NORMAL;
+            ICG_printf(MouseLogBox, "Eraser mode deactivated. Back to Normal mode.\n");
             break;
         default:
             break;
@@ -369,11 +413,10 @@ void OnMouseLUp() {
 
         // Ana canvas'ý güncelle ve ekrana yansýt
         DisplayImage(FRM1, m);
-
-        // Geçici canvas'ý sýfýrla
-        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+        
     }
-
+    // Geçici canvas'ý sýfýrla
+    FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
     prevX = -1;
     prevY = -1;
 }
@@ -532,6 +575,22 @@ void Linee() {
     activeMode = LINE;  // Çizgi modunu etkinleþtir
     ICG_printf(MouseLogBox, "Line mode activated.\n");
 }
+void Circle() {
+    activeMode = CIRCLE;  // Çizgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Circle mode activated.\n");
+}
+void FilledCircle() {
+    activeMode = FILLED_CIRCLE;  // Çizgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Filled Circle mode activated.\n");
+}
+void Triangle() {
+    activeMode = TRIANGLE;  // Çizgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Triangle mode activated.\n");
+}
+void MarkPlus() {
+    activeMode = PLUS_MARK;  // Çizgi modunu etkinleþtir
+    ICG_printf(MouseLogBox, "Plus Mark mode activated.\n");
+}
 
 void CreateModeButtons() {
     ICG_Button(700, 70, 80, 30, "Normal", NormalMode);
@@ -597,9 +656,9 @@ void CreateMenuItems() {
     ICG_SetMenu(AnaMenu);
 }
 void CreateDrawingButtons() {
-    int BTN1, BTN2, BTN3, BTN4, BTN5;
+    int BTN1, BTN2, BTN3, BTN4, BTN5, BTN6, BTN7, BTN8, BTNERASER;
 
-    static ICBYTES butonresmi, butonresmi1, butonresmi2, butonresmi3, butonresmi4;
+    static ICBYTES butonresmi, butonresmi1, butonresmi2, butonresmi3, butonresmi4, butonresmi5, butonresmi6, butonresmi7, eraserIcon;
 
     // BTN1: Elips
     CreateImage(butonresmi, 50, 50, ICB_UINT);
@@ -639,9 +698,40 @@ void CreateDrawingButtons() {
     // BTN5: Artý Ýþareti
     CreateImage(butonresmi4, 50, 50, ICB_UINT);
     butonresmi4 = 0xffffff;
-    BTN5 = ICG_BitmapButton(650, 10, 40, 40, Linee);
+    BTN5 = ICG_BitmapButton(450, 55, 40, 40, MarkPlus);
     MarkPlus(butonresmi4, 25, 25, 10, 0);
     SetButtonBitmap(BTN5, butonresmi4);
+
+    // BTN6: Daire Ýþareti
+    CreateImage(butonresmi5, 50, 50, ICB_UINT);
+    butonresmi5 = 0xffffff;
+    BTN6 = ICG_BitmapButton(500, 55, 40, 40, Circle);
+    Circle(butonresmi5, 25, 25, 10, 0);
+    SetButtonBitmap(BTN6, butonresmi5);
+
+    // BTN7: Dolu Daire Ýþareti
+    CreateImage(butonresmi6, 50, 50, ICB_UINT);
+    butonresmi6 = 0xffffff;
+    BTN7 = ICG_BitmapButton(550, 55, 40, 40, FilledCircle);
+    FillCircle(butonresmi6, 25, 25, 10, 0);
+    SetButtonBitmap(BTN7, butonresmi6);
+
+    // BTN8: Üçgen Ýþareti
+    CreateImage(butonresmi7, 50, 50, ICB_UINT);
+    butonresmi7 = 0xffffff;
+    BTN8 = ICG_BitmapButton(600, 55, 40, 40, Triangle);
+    DrawLine(butonresmi7, 10, 11, 40, 40, 0x0000000);
+    DrawLine(butonresmi7, 11, 12, 40, 40, 0x0000000);
+    DrawLine(butonresmi7, 12, 13, 40, 40, 0x0000000);
+    SetButtonBitmap(BTN8, butonresmi7);
+
+    //Silgi 
+    CreateImage(eraserIcon, 50, 50, ICB_UINT);
+    eraserIcon = 0xffffff;  // Beyaz zemin üzerinde bir silgi simgesi çizebilirsiniz
+    BTNERASER = ICG_BitmapButton(650, 10, 40, 40, EraserMode);
+    Rect(eraserIcon, 10, 10, 30, 30, 0x000000); // Simge olarak siyah çerçeve
+    Line(eraserIcon, 10, 30, 30, 10, 0x000000); // Çapraz çizgi
+    SetButtonBitmap(BTNERASER, eraserIcon);
 }
 
 // Ana GUI Fonksiyonu
@@ -665,7 +755,7 @@ void ICGUI_main() {
     CreateDrawingButtons(); // Çizim butonlarýný oluþtur
 
     // Mouse hareketlerini izlemek için metin kutusu
-    MouseLogBox = ICG_MLEditSunken(10, 500, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
+    MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
 
     // Clear butonu 
     ICG_Button(900, 60, 80, 30, "Clear", ClearCanvas);
