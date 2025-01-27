@@ -51,6 +51,10 @@ ICBYTES tempCanvas;
 void ClearCanvas() {
     // Canvas'ý beyaz ile temizle
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
+
+    // Geçici canvas'ý temizle
+    FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+
     DisplayImage(FRM1, m);
 }
 
@@ -174,6 +178,7 @@ int ConvertToBGR(int color) {
     return ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF);
 }
 
+
 void SelectColor1() { selectedColor = ConvertToBGR(0x000000); UpdatePreview(); } // Siyah
 void SelectColor2() { selectedColor = ConvertToBGR(0x6d6d6d); UpdatePreview(); } // Gri
 void SelectColor3() { selectedColor = ConvertToBGR(0xFF0000); UpdatePreview(); } // Kýrmýzý
@@ -255,13 +260,31 @@ void InitializeColorPreview() {
     DisplayImage(ColorPreviewFrame, ColorPreview);
 }
 
+
+void ManualCopy(ICBYTES& source, ICBYTES& destination) {
+    // Boyutlarý kontrol et
+    if (source.X() != destination.X() || source.Y() != destination.Y()) {
+        ICG_printf(MouseLogBox, "Copy failed: Dimension mismatch.\n");
+        return;
+    }
+
+    // Piksel bazýnda kopyalama iþlemi
+    for (int y = 0; y < source.Y(); ++y) {
+        for (int x = 0; x < source.X(); ++x) {
+            destination.B(x, y, 0) = source.B(x, y, 0); // Mavi
+            destination.B(x, y, 1) = source.B(x, y, 1); // Yeþil
+            destination.B(x, y, 2) = source.B(x, y, 2); // Kýrmýzý
+        }
+    }
+}
+
+
 void UpdateCombinedCanvas() {
     ICBYTES combinedCanvas;
     CreateMatrix(combinedCanvas, m.X(), m.Y(), 3, ICB_UCHAR);
 
-    // Ana canvas'ý birleþik canvas'a kopyala
-    Copy(m, 0, 0, m.X(), m.Y(), combinedCanvas);
-
+     // Ana tuvali manuel olarak birleþtirilmiþ tuvale kopyala
+    ManualCopy(m, combinedCanvas);
     // Geçici canvas'ý ekle
     for (int y = 0; y < combinedCanvas.Y(); ++y) {
         for (int x = 0; x < combinedCanvas.X(); ++x) {
@@ -275,10 +298,11 @@ void UpdateCombinedCanvas() {
         }
     }
 
-    // Birleþik canvas'ý ekrana yansýt
+    // Birleþtirilen tuvali ekrana yansýt
     DisplayImage(FRM1, combinedCanvas);
     Free(combinedCanvas);
 }
+
 
 void LogMouseAction(const char* action, int x, int y) {
     if (x < 0 || x >= m.X() || y < 0 || y >= m.Y()) {
@@ -334,7 +358,7 @@ void OnMouseMove(int x, int y) {
 
         switch (activeMode) {
         case RECTANGLE:
-            Rect(m, startX, startY, currentX, currentY, selectedColor);
+            Rect(tempCanvas, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
         case FILLED_RECTANGLE:
             FillRect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
@@ -364,7 +388,7 @@ void OnMouseMove(int x, int y) {
             break;
         }
 
-        // Geçici canvas'ý ana canvas ile birleþtir ve ön izleme olarak göster
+        // Geçici canvas ve ana canvas'ý birleþtir ve ekrana yansýt
         UpdateCombinedCanvas();
     }
 }
@@ -377,10 +401,10 @@ void OnMouseLUp() {
     isDrawing = false;
 
     if (activeMode != NORMAL) {
-        // Geçici canvas'ý ana canvas'a uygulayarak kalýcý hale getir
+        // Geçici canvas'taki þekli ana canvas'a uygula
         switch (activeMode) {
         case RECTANGLE:
-            Rect(m, startX, startY, currentX, currentY, selectedColor);
+            Rect(m, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
         case FILLED_RECTANGLE:
             FillRect(m, startX, startY, currentX, currentY, selectedColor);
@@ -395,31 +419,27 @@ void OnMouseLUp() {
             Circle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
             break;
         case FILLED_CIRCLE:
-            FillCircle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX), selectedColor);
+            FillCircle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
             break;
         case TRIANGLE:
             DrawTriangle(m, startX, startY, currentX, startY, (startX + currentX) / 2, currentY, selectedColor);
             break;
         case PLUS_MARK:
-            MarkPlus(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
-            break;
-        case ERASER:
-            activeMode = NORMAL;
-            ICG_printf(MouseLogBox, "Eraser mode deactivated. Back to Normal mode.\n");
+            MarkPlus(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
             break;
         default:
             break;
         }
 
-        // Ana canvas'ý güncelle ve ekrana yansýt
-        DisplayImage(FRM1, m);
-        
+        // Geçici canvas'ý sýfýrla
+        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+        DisplayImage(FRM1, m); // Ana canvas'ý ekrana yansýt
     }
-    // Geçici canvas'ý sýfýrla
-    FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+
     prevX = -1;
     prevY = -1;
 }
+
 
 // Fare Olaylarýný Ayarlama
 void SetupMouseHandlers() {
