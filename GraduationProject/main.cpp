@@ -1,41 +1,41 @@
-#include "icb_gui.h" 
+ï»¿#include "icb_gui.h" 
 #include "ic_media.h" 
 #include "icbytes.h"
 #include <windows.h>
 #include <stdio.h>
-#include <commdlg.h> // Save file dialog için
+#include <commdlg.h> // Save file dialog iÃ§in
 #include <iostream> 
 
 
-// Global deðiþkenler
-ICBYTES m;               // Çizim alaný
-int FRM1;                 // Çizim alaný paneli
-bool isDrawing = false;   // Çizim durumunu takip etme
-int prevX = -1, prevY = -1; // Önceki fare konumu
+// Global deÄŸiÅŸkenler
+ICBYTES m;               // Ã‡izim alanÄ±
+int FRM1;                 // Ã‡izim alanÄ± paneli
+bool isDrawing = false;   // Ã‡izim durumunu takip etme
+int prevX = -1, prevY = -1; // Ã–nceki fare konumu
 
-HANDLE hThread;      // Çizim iþ parçacýðý
-DWORD threadID;      // Ýþ parçacýðý kimliði
-bool stopDrawing = false; // Ýþ parçacýðýnýn durumu
+HANDLE hThread;      // Ã‡izim iÅŸ parÃ§acÄ±ÄŸÄ±
+DWORD threadID;      // Ä°ÅŸ parÃ§acÄ±ÄŸÄ± kimliÄŸi
+bool stopDrawing = false; // Ä°ÅŸ parÃ§acÄ±ÄŸÄ±nÄ±n durumu
 
-int SLE1;               // Kademe kutucuðunun baðlý olduðu metin kutusu
-int RTrackBar; // Renk kademeleri için track barlar
+int SLE1;               // Kademe kutucuÄŸunun baÄŸlÄ± olduÄŸu metin kutusu
+int RTrackBar; // Renk kademeleri iÃ§in track barlar
 int selectedColor = 0x000000; // Siyah
-int ColorPreviewFrame; // Renk önizleme çerçevesi
-ICBYTES ColorPreview;  // Renk önizleme alaný için bir matris
+int ColorPreviewFrame; // Renk Ã¶nizleme Ã§erÃ§evesi
+ICBYTES ColorPreview;  // Renk Ã¶nizleme alanÄ± iÃ§in bir matris
 
-int MouseLogBox; // Fare hareketlerini göstermek için metin kutusu
+int MouseLogBox; // Fare hareketlerini gÃ¶stermek iÃ§in metin kutusu
 
-int frameOffsetX = 50; // Çerçeve X baþlangýç konumu
-int frameOffsetY = 100; // Çerçeve Y baþlangýç konumu
+int frameOffsetX = 50; // Ã‡erÃ§eve X baÅŸlangÄ±Ã§ konumu
+int frameOffsetY = 100; // Ã‡erÃ§eve Y baÅŸlangÄ±Ã§ konumu
 
-int lineThickness = 1; // Varsayýlan olarak 1 piksel kalýnlýk
+int lineThickness = 1; // VarsayÄ±lan olarak 1 piksel kalÄ±nlÄ±k
 
-int startX = -1, startY = -1; // Fare sürükleme baþlangýç pozisyonu
-int currentX = -1, currentY = -1; // Fare sürükleme geçerli pozisyonu
+int startX = -1, startY = -1; // Fare sÃ¼rÃ¼kleme baÅŸlangÄ±Ã§ pozisyonu
+int currentX = -1, currentY = -1; // Fare sÃ¼rÃ¼kleme geÃ§erli pozisyonu
 
 enum Mode { NORMAL, ELLIPSE, RECTANGLE, FILLED_RECTANGLE, LINE, CIRCLE, FILLED_CIRCLE, TRIANGLE, PLUS_MARK, ERASER };
 
-Mode activeMode = NORMAL; // Varsayýlan mod NORMAL
+Mode activeMode = NORMAL; // VarsayÄ±lan mod NORMAL
 
 struct DrawParams {
     ICBYTES* canvas;
@@ -47,38 +47,38 @@ struct DrawParams {
 
 ICBYTES tempCanvas;
 
-// Çizim Alanýný Temizle
+// Ã‡izim AlanÄ±nÄ± Temizle
 void ClearCanvas() {
-    // Canvas'ý beyaz ile temizle
+    // Canvas'Ä± beyaz ile temizle
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
 
-    // Geçici canvas'ý temizle
+    // GeÃ§ici canvas'Ä± temizle
     FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
 
     DisplayImage(FRM1, m);
 }
 
-// GUI Baþlatma Fonksiyonu
+// GUI BaÅŸlatma Fonksiyonu
 void ICGUI_Create() {
     ICG_MWSize(1000, 600);
     ICG_MWTitle("Paint Uygulamasi - ICBYTES");
 }
 
 void UpdateLineThickness(int value) {
-    lineThickness = value; // Kalýnlýk deðerini güncelle
+    lineThickness = value; // KalÄ±nlÄ±k deÄŸerini gÃ¼ncelle
     ICG_printf(MouseLogBox, "Line thickness updated: %d\n", lineThickness);
 }
 
 void CreateThicknessTrackbar() {
-    ICG_TrackBarH(700, 30, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluðu
+    ICG_TrackBarH(700, 30, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluÄŸu
 }
 
 void EraserMode() {
-    activeMode = ERASER;  // Silgi modunu etkinleþtir
+    activeMode = ERASER;  // Silgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Eraser mode activated.\n");
 }
 
-// Çizgi Çizme Fonksiyonu
+// Ã‡izgi Ã‡izme Fonksiyonu
 void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);
@@ -87,20 +87,20 @@ void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     int err = dx - dy;
 
     while (true) {
-        // Pikseli çiz ve kalýnlýða göre çevresini doldur
+        // Pikseli Ã§iz ve kalÄ±nlÄ±ÄŸa gÃ¶re Ã§evresini doldur
         for (int i = -lineThickness / 2; i <= lineThickness / 2; i++) {
             for (int j = -lineThickness / 2; j <= lineThickness / 2; j++) {
                 int px = x1 + i;
                 int py = y1 + j;
                 if (px >= 0 && px < canvas.X() && py >= 0 && py < canvas.Y()) {
                     canvas.B(px, py, 0) = color & 0xFF;        // Mavi
-                    canvas.B(px, py, 1) = (color >> 8) & 0xFF; // Yeþil
-                    canvas.B(px, py, 2) = (color >> 16) & 0xFF; // Kýrmýzý
+                    canvas.B(px, py, 1) = (color >> 8) & 0xFF; // YeÅŸil
+                    canvas.B(px, py, 2) = (color >> 16) & 0xFF; // KÄ±rmÄ±zÄ±
                 }
             }
         }
 
-        // Çizim tamamlandýysa döngüyü kýr
+        // Ã‡izim tamamlandÄ±ysa dÃ¶ngÃ¼yÃ¼ kÄ±r
         if (x1 == x2 && y1 == y2) break;
 
         int e2 = 2 * err;
@@ -141,7 +141,7 @@ DWORD WINAPI DrawShape(LPVOID lpParam) {
         break;
     }
 
-    // Ýþ parçacýðý parametrelerini temizle
+    // Ä°ÅŸ parÃ§acÄ±ÄŸÄ± parametrelerini temizle
     delete params;
     return 0;
 }
@@ -152,16 +152,16 @@ void DrawTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y
     DrawLine(canvas, x3, y3, x1, y1, color);
 }
 
-// Kademe Kutucuðu :Renk Bileþeni Güncelleme
+// Kademe KutucuÄŸu :Renk BileÅŸeni GÃ¼ncelleme
 void UpdateColor(int kademe) {
-    // Örnek olarak basit bir RGB renk paleti
-    int red = kademe * 10 % 256; // Renk tonlarýný farklý yap
+    // Ã–rnek olarak basit bir RGB renk paleti
+    int red = kademe * 10 % 256; // Renk tonlarÄ±nÄ± farklÄ± yap
     int green = (kademe * 20) % 256;
     int blue = (kademe * 30) % 256;
 
     selectedColor = (red << 16) | (green << 8) | blue;
 
-    // Güncellenen rengi göster
+    // GÃ¼ncellenen rengi gÃ¶ster
     ICG_SetWindowText(SLE1, "");
     ICG_printf(SLE1, "Selected Color: 0x%X\n", selectedColor);
     FillRect(ColorPreview, 0, 0, 50, 50, selectedColor);
@@ -181,12 +181,12 @@ int ConvertToBGR(int color) {
 
 void SelectColor1() { selectedColor = ConvertToBGR(0x000000); UpdatePreview(); } // Siyah
 void SelectColor2() { selectedColor = ConvertToBGR(0x6d6d6d); UpdatePreview(); } // Gri
-void SelectColor3() { selectedColor = ConvertToBGR(0xFF0000); UpdatePreview(); } // Kýrmýzý
-void SelectColor4() { selectedColor = ConvertToBGR(0x500000); UpdatePreview(); } // Koyu Kýrmýzý
+void SelectColor3() { selectedColor = ConvertToBGR(0xFF0000); UpdatePreview(); } // KÄ±rmÄ±zÄ±
+void SelectColor4() { selectedColor = ConvertToBGR(0x500000); UpdatePreview(); } // Koyu KÄ±rmÄ±zÄ±
 void SelectColor5() { selectedColor = ConvertToBGR(0xfc4e03); UpdatePreview(); } // Turuncu
-void SelectColor6() { selectedColor = ConvertToBGR(0xfce803); UpdatePreview(); } // Sarý
-void SelectColor7() { selectedColor = ConvertToBGR(0x00FF00); UpdatePreview(); } // Yeþil
-void SelectColor8() { selectedColor = ConvertToBGR(0x00c4e2); UpdatePreview(); } // Açýk Mavi
+void SelectColor6() { selectedColor = ConvertToBGR(0xfce803); UpdatePreview(); } // SarÄ±
+void SelectColor7() { selectedColor = ConvertToBGR(0x00FF00); UpdatePreview(); } // YeÅŸil
+void SelectColor8() { selectedColor = ConvertToBGR(0x00c4e2); UpdatePreview(); } // AÃ§Ä±k Mavi
 void SelectColor9() { selectedColor = ConvertToBGR(0x0919ca); UpdatePreview(); } // Mavi
 void SelectColor10() { selectedColor = ConvertToBGR(0x8209c0); UpdatePreview(); } // Mor
 
@@ -222,7 +222,7 @@ void CreateColorButtons() {
     Cbutonresmi4 = 0xfc4e03;
     CBTN5 = ICG_BitmapButton(420, 10, 25, 25, SelectColor5);
     SetButtonBitmap(CBTN5, Cbutonresmi4);
-    // Alt satýr 
+    // Alt satÄ±r 
     CreateImage(Cbutonresmi5, 50, 50, ICB_UINT);
     Cbutonresmi5 = 0xfce803;
     CBTN6 = ICG_BitmapButton(300, 40, 25, 25, SelectColor6);
@@ -254,7 +254,7 @@ void InitializeColorPreview() {
     CreateImage(ColorPreview, 50, 50, ICB_UINT);
     SLE1 = ICG_SLEditBorder(10, 10, 200, 25, "0");
     RTrackBar = ICG_TrackBarH(10, 50, 200, 30, UpdateColor);
-    // Çerçeve oluþtur
+    // Ã‡erÃ§eve oluÅŸtur
     ColorPreviewFrame = ICG_FrameMedium(220, 10, 70, 70);
     ColorPreview = 0xff00;
     DisplayImage(ColorPreviewFrame, ColorPreview);
@@ -262,47 +262,55 @@ void InitializeColorPreview() {
 
 
 void ManualCopy(ICBYTES& source, ICBYTES& destination) {
-    // Boyutlarý kontrol et
+    // BoyutlarÄ± kontrol et
     if (source.X() != destination.X() || source.Y() != destination.Y()) {
         ICG_printf(MouseLogBox, "Copy failed: Dimension mismatch.\n");
         return;
     }
 
-    // Piksel bazýnda kopyalama iþlemi
+    // Piksel bazÄ±nda kopyalama iÅŸlemi
     for (int y = 0; y < source.Y(); ++y) {
         for (int x = 0; x < source.X(); ++x) {
-            destination.B(x, y, 0) = source.B(x, y, 0); // Mavi
-            destination.B(x, y, 1) = source.B(x, y, 1); // Yeþil
-            destination.B(x, y, 2) = source.B(x, y, 2); // Kýrmýzý
+            destination.B(x, y, 0) = source.B(x, y, 2); // Mavi
+            destination.B(x, y, 1) = source.B(x, y, 1); // YeÅŸil
+            destination.B(x, y, 2) = source.B(x, y, 0); // KÄ±rmÄ±zÄ±
         }
     }
 }
-
 
 void UpdateCombinedCanvas() {
     ICBYTES combinedCanvas;
     CreateMatrix(combinedCanvas, m.X(), m.Y(), 3, ICB_UCHAR);
 
-     // Ana tuvali manuel olarak birleþtirilmiþ tuvale kopyala
+     // Ana tuvali manuel olarak birleÅŸtirilmiÅŸ tuvale kopyala
     ManualCopy(m, combinedCanvas);
-    // Geçici canvas'ý ekle
+    // GeÃ§ici canvas'Ä± ekle
     for (int y = 0; y < combinedCanvas.Y(); ++y) {
         for (int x = 0; x < combinedCanvas.X(); ++x) {
             if (!(tempCanvas.B(x, y, 0) == 0xFF &&
                 tempCanvas.B(x, y, 1) == 0xFF &&
                 tempCanvas.B(x, y, 2) == 0xFF)) {
-                combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 0);
+                combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 0);
                 combinedCanvas.B(x, y, 1) = tempCanvas.B(x, y, 1);
-                combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 2);
+                combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 2);
             }
         }
     }
 
-    // Birleþtirilen tuvali ekrana yansýt
+    // BirleÅŸtirilen tuvali ekrana yansÄ±t
     DisplayImage(FRM1, combinedCanvas);
     Free(combinedCanvas);
 }
 
+void ClearTemporaryCanvas() {
+    for (int y = 0; y < tempCanvas.Y(); ++y) {
+        for (int x = 0; x < tempCanvas.X(); ++x) {
+            tempCanvas.B(x, y, 0) = 0xFF; // Mavi
+            tempCanvas.B(x, y, 1) = 0xFF; // YeÅŸil
+            tempCanvas.B(x, y, 2) = 0xFF; // KÄ±rmÄ±zÄ±
+        }
+    }
+}
 
 void LogMouseAction(const char* action, int x, int y) {
     if (x < 0 || x >= m.X() || y < 0 || y >= m.Y()) {
@@ -314,7 +322,7 @@ void LogMouseAction(const char* action, int x, int y) {
 }
 
 
-// Sol Fare Tuþuna Basýldýðýnda
+// Sol Fare TuÅŸuna BasÄ±ldÄ±ÄŸÄ±nda
 void OnMouseLDown() {
     isDrawing = true;
     prevX = ICG_GetMouseX() - frameOffsetX;
@@ -326,7 +334,7 @@ void OnMouseLDown() {
     }
 }
 
-// Fare Hareket Ettiðinde
+// Fare Hareket EttiÄŸinde
 void OnMouseMove(int x, int y) {
     if (!isDrawing) return;
 
@@ -335,8 +343,25 @@ void OnMouseMove(int x, int y) {
 
     if (activeMode == ERASER) {
         if (prevX >= 0 && prevY >= 0) {
-            DrawLine(m, prevX, prevY, currentX, currentY, 0xFFFFFF); // Arka plan rengini kullan (beyaz)
-            DisplayImage(FRM1, m);
+            for (int i = -lineThickness / 2; i <= lineThickness / 2; ++i) {
+                for (int j = -lineThickness / 2; j <= lineThickness / 2; ++j) {
+                    int px = currentX + i;
+                    int py = currentY + j;
+                    if (px >= 0 && px < m.X() && py >= 0 && py < m.Y()) {
+                        // Ana tuvali beyazla temizle
+                        m.B(px, py, 0) = 0xFF; // Mavi (beyaz iÃ§in 0xFF)
+                        m.B(px, py, 1) = 0xFF; // YeÅŸil
+                        m.B(px, py, 2) = 0xFF; // KÄ±rmÄ±zÄ±
+                    }
+                    if (px >= 0 && px < tempCanvas.X() && py >= 0 && py < tempCanvas.Y()) {
+                        // GeÃ§ici tuvali de beyazla temizle
+                        tempCanvas.B(px, py, 0) = 0xFF; // Mavi
+                        tempCanvas.B(px, py, 1) = 0xFF; // YeÅŸil
+                        tempCanvas.B(px, py, 2) = 0xFF; // KÄ±rmÄ±zÄ±
+                    }
+                }
+            }
+            UpdateCombinedCanvas(); // DeÄŸiÅŸiklikleri ekrana yansÄ±t
         }
         prevX = currentX;
         prevY = currentY;
@@ -344,16 +369,16 @@ void OnMouseMove(int x, int y) {
     }
 
     if (activeMode == NORMAL) {
-        // Serbest çizim modu
+        // Serbest Ã§izim modu
         if (prevX >= 0 && prevY >= 0) {
-            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor); // Ana canvas'a çiz
-            DisplayImage(FRM1, m); // Ana canvas'ý ekrana yansýt
+            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor); // Ana canvas'a Ã§iz
+            DisplayImage(FRM1, m); // Ana canvas'Ä± ekrana yansÄ±t
         }
         prevX = currentX;
         prevY = currentY;
     }
     else {
-        // Geçici canvas'ý temizle ve þekli geçici olarak çiz
+        // GeÃ§ici canvas'Ä± temizle ve ÅŸekli geÃ§ici olarak Ã§iz
         FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
 
         switch (activeMode) {
@@ -388,20 +413,20 @@ void OnMouseMove(int x, int y) {
             break;
         }
 
-        // Geçici canvas ve ana canvas'ý birleþtir ve ekrana yansýt
+        // GeÃ§ici canvas ve ana canvas'Ä± birleÅŸtir ve ekrana yansÄ±t
         UpdateCombinedCanvas();
     }
 }
 
 
-// Sol Fare Tuþunu Býraktýðýnýzda
+// Sol Fare TuÅŸunu BÄ±raktÄ±ÄŸÄ±nÄ±zda
 void OnMouseLUp() {
     if (!isDrawing) return;
 
     isDrawing = false;
 
     if (activeMode != NORMAL) {
-        // Geçici canvas'taki þekli ana canvas'a uygula
+        // GeÃ§ici canvas'taki ÅŸekli ana canvas'a uygula
         switch (activeMode) {
         case RECTANGLE:
             Rect(m, startX, startY, currentX - startX, currentY - startY, selectedColor);
@@ -431,9 +456,9 @@ void OnMouseLUp() {
             break;
         }
 
-        // Geçici canvas'ý sýfýrla
-        FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
-        DisplayImage(FRM1, m); // Ana canvas'ý ekrana yansýt
+        // GeÃ§ici tuvali tamamen beyaza Ã§evir
+        ClearTemporaryCanvas();
+        DisplayImage(FRM1, m); // Ana canvas'Ä± ekrana yansÄ±t
     }
 
     prevX = -1;
@@ -441,14 +466,14 @@ void OnMouseLUp() {
 }
 
 
-// Fare Olaylarýný Ayarlama
+// Fare OlaylarÄ±nÄ± Ayarlama
 void SetupMouseHandlers() {
     ICG_SetOnMouseLDown(OnMouseLDown);
     ICG_SetOnMouseMove(OnMouseMove);
     ICG_SetOnMouseLUp(OnMouseLUp);
 }
 
-// Canvas Baþlat
+// Canvas BaÅŸlat
 void InitializeCanvas() {
     int canvasWidth = 800;
     int canvasHeight = 600;
@@ -457,11 +482,18 @@ void InitializeCanvas() {
     CreateMatrix(m, canvasWidth, canvasHeight, 3, ICB_UCHAR);
     FillRect(m, 0, 0, canvasWidth, canvasHeight, 0xFFFFFF);
 
-    // Geçici canvas
+    // GeÃ§ici canvas
     CreateMatrix(tempCanvas, canvasWidth, canvasHeight, 3, ICB_UCHAR);
     FillRect(tempCanvas, 0, 0, canvasWidth, canvasHeight, 0xFFFFFF);
 
-    // Çerçeve oluþtur ve ekrana yansýt
+    // Alpha kanalÄ±nÄ± sÄ±fÄ±rla
+    for (int y = 0; y < tempCanvas.Y(); ++y) {
+        for (int x = 0; x < tempCanvas.X(); ++x) {
+            tempCanvas.B(x, y, 3) = 0xFF; // Tam opak
+        }
+    }
+
+    // Ã‡erÃ§eve oluÅŸtur ve ekrana yansÄ±t
     FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, canvasWidth, canvasHeight);
     DisplayImage(FRM1, m);
 }
@@ -469,10 +501,10 @@ void InitializeCanvas() {
 void NewFunc() {
     ICG_DestroyWidget(FRM1);
 
-    // Yeni çerçeve oluþtur (800x600 boyutunda)
+    // Yeni Ã§erÃ§eve oluÅŸtur (800x600 boyutunda)
     FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, 800, 400);
 
-    // Canvas'ý beyaza sýfýrla
+    // Canvas'Ä± beyaza sÄ±fÄ±rla
     m = FRM1;
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
     DisplayMatrix(FRM1, m);
@@ -495,7 +527,7 @@ bool SaveBitmapToFile(HBITMAP hBitmap, const char* filePath) {
 
     bi.biSize = sizeof(BITMAPINFOHEADER);
     bi.biWidth = bmp.bmWidth;
-    bi.biHeight = -bmp.bmHeight; // Pozitif deðer ters görüntü kaydeder
+    bi.biHeight = -bmp.bmHeight; // Pozitif deÄŸer ters gÃ¶rÃ¼ntÃ¼ kaydeder
     bi.biPlanes = 1;
     bi.biBitCount = 32; // 32 bit renk
     bi.biCompression = BI_RGB;
@@ -536,7 +568,7 @@ bool SaveBitmapToFile(HBITMAP hBitmap, const char* filePath) {
 }
 
 void SaveFunc() {
-    OPENFILENAME ofn;       // Dosya seçme iletiþim kutusu
+    OPENFILENAME ofn;       // Dosya seÃ§me iletiÅŸim kutusu
     char file_name[260] = { 0 };
     ZeroMemory(&ofn, sizeof(ofn));
 
@@ -554,7 +586,7 @@ void SaveFunc() {
         if (bitmap) {
             // Bitmap'i dosyaya kaydet
             if (SaveBitmapToFile(bitmap, ofn.lpstrFile)) {
-                MessageBox(ICG_GetMainWindow(), "Resim baþarýyla kaydedildi.", "Bilgi", MB_OK);
+                MessageBox(ICG_GetMainWindow(), "Resim baÅŸarÄ±yla kaydedildi.", "Bilgi", MB_OK);
             }
             else {
                 MessageBox(ICG_GetMainWindow(), "Resim kaydedilemedi.", "Hata", MB_OK);
@@ -562,53 +594,53 @@ void SaveFunc() {
             DeleteObject(bitmap);
         }
         else {
-            MessageBox(ICG_GetMainWindow(), "Bitmap oluþturulamadý.", "Hata", MB_OK);
+            MessageBox(ICG_GetMainWindow(), "Bitmap oluÅŸturulamadÄ±.", "Hata", MB_OK);
         }
     }
 }
 
 void ExitFunc() {
 
-    PostQuitMessage(0);  // Programdan güvenli bir þekilde çýkýþ yapar
+    PostQuitMessage(0);  // Programdan gÃ¼venli bir ÅŸekilde Ã§Ä±kÄ±ÅŸ yapar
 }
 void CutFunc() {}
 void CopyFunc() {}
 void PasteFunc() {}
 void Elipsee() {
-    activeMode = ELLIPSE;  // Elips modunu etkinleþtir
+    activeMode = ELLIPSE;  // Elips modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Ellipse mode activated.\n");
 }
 
 void NormalMode() {
-    activeMode = NORMAL;  // Normal modu etkinleþtir
+    activeMode = NORMAL;  // Normal modu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Normal mode activated.\n");
 }
 void Rectt() {
-    activeMode = RECTANGLE;  // Çerçeveli dikdörtgen modunu etkinleþtir
+    activeMode = RECTANGLE;  // Ã‡erÃ§eveli dikdÃ¶rtgen modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Rectangle mode activated.\n");
 }
 void Rectfil() {
-    activeMode = FILLED_RECTANGLE;  // Dolu dikdörtgen modunu etkinleþtir
+    activeMode = FILLED_RECTANGLE;  // Dolu dikdÃ¶rtgen modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Filled Rectangle mode activated.\n");
 }
 void Linee() {
-    activeMode = LINE;  // Çizgi modunu etkinleþtir
+    activeMode = LINE;  // Ã‡izgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Line mode activated.\n");
 }
 void Circle() {
-    activeMode = CIRCLE;  // Çizgi modunu etkinleþtir
+    activeMode = CIRCLE;  // Ã‡izgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Circle mode activated.\n");
 }
 void FilledCircle() {
-    activeMode = FILLED_CIRCLE;  // Çizgi modunu etkinleþtir
+    activeMode = FILLED_CIRCLE;  // Ã‡izgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Filled Circle mode activated.\n");
 }
 void Triangle() {
-    activeMode = TRIANGLE;  // Çizgi modunu etkinleþtir
+    activeMode = TRIANGLE;  // Ã‡izgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Triangle mode activated.\n");
 }
 void MarkPlus() {
-    activeMode = PLUS_MARK;  // Çizgi modunu etkinleþtir
+    activeMode = PLUS_MARK;  // Ã‡izgi modunu etkinleÅŸtir
     ICG_printf(MouseLogBox, "Plus Mark mode activated.\n");
 }
 
@@ -619,14 +651,14 @@ void CreateModeButtons() {
 
 void ToggleFullScreen() {
     static bool isFullScreen = false; // Tam ekran modunu takip eder
-    static WINDOWPLACEMENT wpPrev = { sizeof(wpPrev) }; // Önceki pencere boyutu
+    static WINDOWPLACEMENT wpPrev = { sizeof(wpPrev) }; // Ã–nceki pencere boyutu
     HWND hwnd = GetActiveWindow(); // Aktif pencereyi al
 
     if (!isFullScreen) {
-        // Tam ekran moduna geç
+        // Tam ekran moduna geÃ§
         MONITORINFO mi = { sizeof(mi) };
         if (GetWindowPlacement(hwnd, &wpPrev) && GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY), &mi)) {
-            // WS_OVERLAPPEDWINDOW stilini koruyarak pencereyi büyüt
+            // WS_OVERLAPPEDWINDOW stilini koruyarak pencereyi bÃ¼yÃ¼t
             SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
                 mi.rcMonitor.right - mi.rcMonitor.left,
                 mi.rcMonitor.bottom - mi.rcMonitor.top,
@@ -635,13 +667,13 @@ void ToggleFullScreen() {
         }
     }
     else {
-        // Önceki pencere boyutuna dön
+        // Ã–nceki pencere boyutuna dÃ¶n
         SetWindowPlacement(hwnd, &wpPrev);
         isFullScreen = false;
     }
 }
 void CreateMenuItems() {
-    // Menüleri tanýmla
+    // MenÃ¼leri tanÄ±mla
     HMENU AnaMenu, DosyaMenu, DuzenleMenu, GorunumMenu;
 
     AnaMenu = CreateMenu();
@@ -649,30 +681,30 @@ void CreateMenuItems() {
     DuzenleMenu = CreatePopupMenu();
     GorunumMenu = CreatePopupMenu();
 
-    // Dosya Menüsü
+    // Dosya MenÃ¼sÃ¼
     ICG_AppendMenuItem(DosyaMenu, "Yeni", NewFunc);
-    ICG_AppendMenuItem(DosyaMenu, "Aç", OpenFunc);
+    ICG_AppendMenuItem(DosyaMenu, "AÃ§", OpenFunc);
     ICG_AppendMenuItem(DosyaMenu, "Kaydet", SaveFunc);
-    ICG_AppendMenuItem(DosyaMenu, "Çýkýþ", ExitFunc);
+    ICG_AppendMenuItem(DosyaMenu, "Ã‡Ä±kÄ±ÅŸ", ExitFunc);
 
-    // Düzenle Menüsü
+    // DÃ¼zenle MenÃ¼sÃ¼
     ICG_AppendMenuItem(DuzenleMenu, "Kes", CutFunc);
     ICG_AppendMenuItem(DuzenleMenu, "Kopyala", CopyFunc);
-    ICG_AppendMenuItem(DuzenleMenu, "Yapýþtýr", PasteFunc);
+    ICG_AppendMenuItem(DuzenleMenu, "YapÄ±ÅŸtÄ±r", PasteFunc);
 
-    // Görünüm Menüsü
-    ICG_AppendMenuItem(GorunumMenu, "Yakýnlaþtýrma", PasteFunc);
+    // GÃ¶rÃ¼nÃ¼m MenÃ¼sÃ¼
+    ICG_AppendMenuItem(GorunumMenu, "YakÄ±nlaÅŸtÄ±rma", PasteFunc);
     ICG_AppendMenuItem(GorunumMenu, "Cetveller", PasteFunc);
-    ICG_AppendMenuItem(GorunumMenu, "Kýlavuz Çizgileri", PasteFunc);
-    ICG_AppendMenuItem(GorunumMenu, "Durum Çubuðu", PasteFunc);
+    ICG_AppendMenuItem(GorunumMenu, "KÄ±lavuz Ã‡izgileri", PasteFunc);
+    ICG_AppendMenuItem(GorunumMenu, "Durum Ã‡ubuÄŸu", PasteFunc);
     ICG_AppendMenuItem(GorunumMenu, "Tam Ekran", ToggleFullScreen);
 
-    // Ana Menüye ekle
+    // Ana MenÃ¼ye ekle
     AppendMenu(AnaMenu, MF_POPUP, (UINT_PTR)DosyaMenu, "Dosya");
-    AppendMenu(AnaMenu, MF_POPUP, (UINT_PTR)DuzenleMenu, "Düzenle");
-    AppendMenu(AnaMenu, MF_POPUP, (UINT_PTR)GorunumMenu, "Görünüm");
+    AppendMenu(AnaMenu, MF_POPUP, (UINT_PTR)DuzenleMenu, "DÃ¼zenle");
+    AppendMenu(AnaMenu, MF_POPUP, (UINT_PTR)GorunumMenu, "GÃ¶rÃ¼nÃ¼m");
 
-    // Ana Menü'yü GUI'ye ata
+    // Ana MenÃ¼'yÃ¼ GUI'ye ata
     ICG_SetMenu(AnaMenu);
 }
 void CreateDrawingButtons() {
@@ -690,14 +722,14 @@ void CreateDrawingButtons() {
 
     SetButtonBitmap(BTN1, butonresmi);
 
-    // BTN2: Dolu Dikdörtgen
+    // BTN2: Dolu DikdÃ¶rtgen
     CreateImage(butonresmi1, 50, 50, ICB_UINT);
     butonresmi1 = 0xffffff;
     BTN2 = ICG_BitmapButton(500, 10, 40, 40, Rectfil);
     FillRect(butonresmi1, 10, 9, 30, 30, 0x0000000);
     SetButtonBitmap(BTN2, butonresmi1);
 
-    // BTN3: Çerçeve Dikdörtgen
+    // BTN3: Ã‡erÃ§eve DikdÃ¶rtgen
     CreateImage(butonresmi2, 50, 50, ICB_UINT);
     butonresmi2 = 0xffffff;
     BTN3 = ICG_BitmapButton(550, 10, 40, 40, Rectt);
@@ -706,7 +738,7 @@ void CreateDrawingButtons() {
     Rect(butonresmi2, 10, 11, 30, 30, 0x0000000);
     SetButtonBitmap(BTN3, butonresmi2);
 
-    // BTN4: Çizgi
+    // BTN4: Ã‡izgi
     CreateImage(butonresmi3, 50, 50, ICB_UINT);
     butonresmi3 = 0xffffff;
     BTN4 = ICG_BitmapButton(600, 10, 40, 40, Linee);
@@ -715,28 +747,28 @@ void CreateDrawingButtons() {
     Line(butonresmi3, 12, 13, 40, 40, 0x0000000);
     SetButtonBitmap(BTN4, butonresmi3);
 
-    // BTN5: Artý Ýþareti
+    // BTN5: ArtÄ± Ä°ÅŸareti
     CreateImage(butonresmi4, 50, 50, ICB_UINT);
     butonresmi4 = 0xffffff;
     BTN5 = ICG_BitmapButton(450, 55, 40, 40, MarkPlus);
     MarkPlus(butonresmi4, 25, 25, 10, 0);
     SetButtonBitmap(BTN5, butonresmi4);
 
-    // BTN6: Daire Ýþareti
+    // BTN6: Daire Ä°ÅŸareti
     CreateImage(butonresmi5, 50, 50, ICB_UINT);
     butonresmi5 = 0xffffff;
     BTN6 = ICG_BitmapButton(500, 55, 40, 40, Circle);
     Circle(butonresmi5, 25, 25, 10, 0);
     SetButtonBitmap(BTN6, butonresmi5);
 
-    // BTN7: Dolu Daire Ýþareti
+    // BTN7: Dolu Daire Ä°ÅŸareti
     CreateImage(butonresmi6, 50, 50, ICB_UINT);
     butonresmi6 = 0xffffff;
     BTN7 = ICG_BitmapButton(550, 55, 40, 40, FilledCircle);
     FillCircle(butonresmi6, 25, 25, 10, 0);
     SetButtonBitmap(BTN7, butonresmi6);
 
-    // BTN8: Üçgen Ýþareti
+    // BTN8: ÃœÃ§gen Ä°ÅŸareti
     CreateImage(butonresmi7, 50, 50, ICB_UINT);
     butonresmi7 = 0xffffff;
     BTN8 = ICG_BitmapButton(600, 55, 40, 40, Triangle);
@@ -747,16 +779,16 @@ void CreateDrawingButtons() {
 
     //Silgi 
     CreateImage(eraserIcon, 50, 50, ICB_UINT);
-    eraserIcon = 0xffffff;  // Beyaz zemin üzerinde bir silgi simgesi çizebilirsiniz
+    eraserIcon = 0xffffff;  // Beyaz zemin Ã¼zerinde bir silgi simgesi Ã§izebilirsiniz
     BTNERASER = ICG_BitmapButton(650, 10, 40, 40, EraserMode);
-    Rect(eraserIcon, 10, 10, 30, 30, 0x000000); // Simge olarak siyah çerçeve
-    Line(eraserIcon, 10, 30, 30, 10, 0x000000); // Çapraz çizgi
+    Rect(eraserIcon, 10, 10, 30, 30, 0x000000); // Simge olarak siyah Ã§erÃ§eve
+    Line(eraserIcon, 10, 30, 30, 10, 0x000000); // Ã‡apraz Ã§izgi
     SetButtonBitmap(BTNERASER, eraserIcon);
 }
 
 // Ana GUI Fonksiyonu
 void ICGUI_main() {
-    ICGUI_Create();  // GUI baþlat
+    ICGUI_Create();  // GUI baÅŸlat
 
     //Bitmap Buton Ekleme 
     int SaveButton;
@@ -765,16 +797,16 @@ void ICGUI_main() {
     SaveButton = ICG_BitmapButton(900, 10, 40, 40, SaveFunc);
     SetButtonBitmap(SaveButton, saveIcon);
 
-    CreateMenuItems();          // Menüleri oluþtur
-    InitializeCanvas();    // Çizim alanýný baþlat
+    CreateMenuItems();          // MenÃ¼leri oluÅŸtur
+    InitializeCanvas();    // Ã‡izim alanÄ±nÄ± baÅŸlat
     InitializeColorPreview(); // Renk Paletini Ekle
-    CreateColorButtons();       // Renk seçici butonlarý ekle
-    CreateThicknessTrackbar();  // Çizgi kalýnlýðý için trackbar ekle
-    CreateModeButtons();  // Mod butonlarýný ekle
-    SetupMouseHandlers(); // Fare olaylarýný ayarla
-    CreateDrawingButtons(); // Çizim butonlarýný oluþtur
+    CreateColorButtons();       // Renk seÃ§ici butonlarÄ± ekle
+    CreateThicknessTrackbar();  // Ã‡izgi kalÄ±nlÄ±ÄŸÄ± iÃ§in trackbar ekle
+    CreateModeButtons();  // Mod butonlarÄ±nÄ± ekle
+    SetupMouseHandlers(); // Fare olaylarÄ±nÄ± ayarla
+    CreateDrawingButtons(); // Ã‡izim butonlarÄ±nÄ± oluÅŸtur
 
-    // Mouse hareketlerini izlemek için metin kutusu
+    // Mouse hareketlerini izlemek iÃ§in metin kutusu
     MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
 
     // Clear butonu 
