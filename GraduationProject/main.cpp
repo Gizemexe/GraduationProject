@@ -152,6 +152,124 @@ void DrawTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y
     DrawLine(canvas, x3, y3, x1, y1, color);
 }
 
+void DrawRectangle(ICBYTES& canvas, int x, int y, int width, int height, int color) {
+    DrawLine(canvas, x, y, x + width, y, color);
+    DrawLine(canvas, x, y, x, y + height, color);
+    DrawLine(canvas, x + width, y, x + width, y + height, color);
+    DrawLine(canvas, x, y + height, x + width, y + height, color);
+}
+
+void DrawFilledRectangle(ICBYTES& canvas, int x, int y, int width, int height, int color) {
+    for (int i = 0; i < width; i++) {
+        DrawLine(canvas, x + i, y, x + i, y + height, color);
+    }
+}
+
+void DrawCircle(ICBYTES& canvas, int cx, int cy, int radius, int color) {
+    int x = 0, y = radius;
+    int d = 1 - radius;
+
+    while (x <= y) {
+        // 8 yönlü simetriyi uygula (Bresenham Circle Algorithm)
+        for (int i = -1; i <= 1; i += 2) {
+            for (int j = -1; j <= 1; j += 2) {
+                if (cx + x * i >= 0 && cx + x * i < canvas.X() && cy + y * j >= 0 && cy + y * j < canvas.Y())
+                    canvas.B(cx + x * i, cy + y * j, 0) = color & 0xFF;
+                if (cx + y * i >= 0 && cx + y * i < canvas.X() && cy + x * j >= 0 && cy + x * j < canvas.Y())
+                    canvas.B(cx + y * i, cy + x * j, 0) = color & 0xFF;
+            }
+        }
+
+        if (d < 0) {
+            d += 2 * x + 3;
+        }
+        else {
+            d += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+    }
+}
+
+void DrawEllipse(ICBYTES& canvas, int cx, int cy, int rx, int ry, int color) {
+    int x = 0, y = ry;
+    long long rxSq = (long long)rx * rx;
+    long long rySq = (long long)ry * ry;
+    long long twoRxSq = 2 * rxSq;
+    long long twoRySq = 2 * rySq;
+    long long p;
+    long long px = 0, py = twoRxSq * y;
+
+    // Bölge 1 (Daha yatay olan kısım)
+    p = rySq - (rxSq * ry) + (0.25 * rxSq);
+    while (px < py) {
+        for (int i = -1; i <= 1; i += 2) {
+            for (int j = -1; j <= 1; j += 2) {
+                if (cx + x * i >= 0 && cx + x * i < canvas.X() && cy + y * j >= 0 && cy + y * j < canvas.Y())
+                    canvas.B(cx + x * i, cy + y * j, 0) = color & 0xFF;
+            }
+        }
+
+        x++;
+        px += twoRySq;
+        if (p < 0) {
+            p += rySq + px;
+        }
+        else {
+            y--;
+            py -= twoRxSq;
+            p += rySq + px - py;
+        }
+    }
+
+    // Bölge 2 (Daha dikey olan kısım)
+    p = rySq * (x + 0.5) * (x + 0.5) + rxSq * (y - 1) * (y - 1) - rxSq * rySq;
+    while (y >= 0) {
+        for (int i = -1; i <= 1; i += 2) {
+            for (int j = -1; j <= 1; j += 2) {
+                if (cx + x * i >= 0 && cx + x * i < canvas.X() && cy + y * j >= 0 && cy + y * j < canvas.Y())
+                    canvas.B(cx + x * i, cy + y * j, 0) = color & 0xFF;
+            }
+        }
+
+        y--;
+        py -= twoRxSq;
+        if (p > 0) {
+            p += rxSq - py;
+        }
+        else {
+            x++;
+            px += twoRySq;
+            p += rxSq - py + px;
+        }
+    }
+}
+
+
+
+
+void DrawFilledCircle(ICBYTES& canvas, int cx, int cy, int radius, int color) {
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            if (x * x + y * y <= radius * radius) {
+                int px = cx + x;
+                int py = cy + y;
+                if (px >= 0 && px < canvas.X() && py >= 0 && py < canvas.Y()) {
+                    canvas.B(px, py, 0) = color & 0xFF;
+                    canvas.B(px, py, 1) = (color >> 8) & 0xFF;
+                    canvas.B(px, py, 2) = (color >> 16) & 0xFF;
+                }
+            }
+        }
+    }
+}
+
+
+void DrawPlusMark(ICBYTES& canvas, int xc, int yc, int size, int color) {
+    DrawLine(canvas, xc - size, yc, xc + size, yc, color);
+    DrawLine(canvas, xc, yc - size, xc, yc + size, color);
+}
+
 // Kademe Kutucuğu :Renk Bileşeni Güncelleme
 void UpdateColor(int kademe) {
     // Örnek olarak basit bir RGB renk paleti
@@ -282,17 +400,19 @@ void UpdateCombinedCanvas() {
     ICBYTES combinedCanvas;
     CreateMatrix(combinedCanvas, m.X(), m.Y(), 3, ICB_UCHAR);
 
-     // Ana tuvali manuel olarak birleştirilmiş tuvale kopyala
+    // Ana tuvali manuel olarak birleştirilmiş tuvale kopyala
     ManualCopy(m, combinedCanvas);
+
     // Geçici canvas'ı ekle
     for (int y = 0; y < combinedCanvas.Y(); ++y) {
         for (int x = 0; x < combinedCanvas.X(); ++x) {
+            // Eğer tempCanvas beyaz değilse (şeffaf değilse), onu ekle
             if (!(tempCanvas.B(x, y, 0) == 0xFF &&
                 tempCanvas.B(x, y, 1) == 0xFF &&
                 tempCanvas.B(x, y, 2) == 0xFF)) {
-                combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 0);
+                combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 0);
                 combinedCanvas.B(x, y, 1) = tempCanvas.B(x, y, 1);
-                combinedCanvas.B(x, y, 0) = tempCanvas.B(x, y, 2);
+                combinedCanvas.B(x, y, 2) = tempCanvas.B(x, y, 2);
             }
         }
     }
@@ -301,6 +421,8 @@ void UpdateCombinedCanvas() {
     DisplayImage(FRM1, combinedCanvas);
     Free(combinedCanvas);
 }
+
+
 
 void ClearTemporaryCanvas() {
     for (int y = 0; y < tempCanvas.Y(); ++y) {
@@ -341,27 +463,35 @@ void OnMouseMove(int x, int y) {
     currentX = ICG_GetMouseX() - frameOffsetX;
     currentY = ICG_GetMouseY() - frameOffsetY;
 
+    FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
+
+    int centerX = (startX + currentX) / 2;
+    int centerY = (startY + currentY) / 2;
+    int width = abs(currentX - startX);
+    int height = abs(currentY - startY);
+    int radius = width / 2;
+
     if (activeMode == ERASER) {
         if (prevX >= 0 && prevY >= 0) {
             for (int i = -lineThickness / 2; i <= lineThickness / 2; ++i) {
                 for (int j = -lineThickness / 2; j <= lineThickness / 2; ++j) {
                     int px = currentX + i;
                     int py = currentY + j;
+
                     if (px >= 0 && px < m.X() && py >= 0 && py < m.Y()) {
-                        // Ana tuvali beyazla temizle
-                        m.B(px, py, 0) = 0xFF; // Mavi (beyaz için 0xFF)
-                        m.B(px, py, 1) = 0xFF; // Yeşil
-                        m.B(px, py, 2) = 0xFF; // Kırmızı
+                        m.B(px, py, 0) = 0xFF;
+                        m.B(px, py, 1) = 0xFF;
+                        m.B(px, py, 2) = 0xFF;
                     }
+
                     if (px >= 0 && px < tempCanvas.X() && py >= 0 && py < tempCanvas.Y()) {
-                        // Geçici tuvali de beyazla temizle
-                        tempCanvas.B(px, py, 0) = 0xFF; // Mavi
-                        tempCanvas.B(px, py, 1) = 0xFF; // Yeşil
-                        tempCanvas.B(px, py, 2) = 0xFF; // Kırmızı
+                        tempCanvas.B(px, py, 0) = 0xFF;
+                        tempCanvas.B(px, py, 1) = 0xFF;
+                        tempCanvas.B(px, py, 2) = 0xFF;
                     }
                 }
             }
-            UpdateCombinedCanvas(); // Değişiklikleri ekrana yansıt
+            UpdateCombinedCanvas();
         }
         prevX = currentX;
         prevY = currentY;
@@ -369,54 +499,49 @@ void OnMouseMove(int x, int y) {
     }
 
     if (activeMode == NORMAL) {
-        // Serbest çizim modu
         if (prevX >= 0 && prevY >= 0) {
-            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor); // Ana canvas'a çiz
-            DisplayImage(FRM1, m); // Ana canvas'ı ekrana yansıt
+            DrawLine(m, prevX, prevY, currentX, currentY, selectedColor);
+            DisplayImage(FRM1, m);
         }
         prevX = currentX;
         prevY = currentY;
     }
     else {
-        // Geçici canvas'ı temizle ve şekli geçici olarak çiz
         FillRect(tempCanvas, 0, 0, tempCanvas.X(), tempCanvas.Y(), 0xFFFFFF);
 
         switch (activeMode) {
         case RECTANGLE:
-            Rect(tempCanvas, startX, startY, currentX - startX, currentY - startY, selectedColor);
+            DrawRectangle(tempCanvas, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
         case FILLED_RECTANGLE:
-            FillRect(tempCanvas, startX, startY, currentX, currentY, selectedColor);
+            DrawFilledRectangle(tempCanvas, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
-        case ELLIPSE: {
-            int radiusX = abs(currentX - startX) / 2;
-            int radiusY = abs(currentY - startY) / 2;
-            Ellipse(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, radiusX, radiusY, selectedColor);
+        case ELLIPSE: 
+            DrawEllipse(tempCanvas, centerX, centerY, width / 2, height / 2, selectedColor);
             break;
-        }
         case LINE:
             DrawLine(tempCanvas, startX, startY, currentX, currentY, selectedColor);
             break;
         case CIRCLE:
-            Circle(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            DrawCircle(tempCanvas, centerX, centerY, radius, selectedColor);
             break;
         case FILLED_CIRCLE:
-            FillCircle(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            DrawFilledCircle(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
             break;
         case TRIANGLE:
             DrawTriangle(tempCanvas, startX, startY, currentX, startY, (startX + currentX) / 2, currentY, selectedColor);
             break;
         case PLUS_MARK:
-            MarkPlus(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
+            DrawPlusMark(tempCanvas, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
             break;
         default:
             break;
         }
 
-        // Geçici canvas ve ana canvas'ı birleştir ve ekrana yansıt
         UpdateCombinedCanvas();
     }
 }
+
 
 
 // Sol Fare Tuşunu Bıraktığınızda
@@ -425,45 +550,50 @@ void OnMouseLUp() {
 
     isDrawing = false;
 
+    int centerX = (startX + currentX) / 2;
+    int centerY = (startY + currentY) / 2;
+    int width = abs(currentX - startX);
+    int height = abs(currentY - startY);
+    int radius = width / 2;
+
     if (activeMode != NORMAL) {
-        // Geçici canvas'taki şekli ana canvas'a uygula
         switch (activeMode) {
         case RECTANGLE:
-            Rect(m, startX, startY, currentX - startX, currentY - startY, selectedColor);
+            DrawRectangle(m, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
         case FILLED_RECTANGLE:
-            FillRect(m, startX, startY, currentX, currentY, selectedColor);
+            DrawFilledRectangle(m, startX, startY, currentX - startX, currentY - startY, selectedColor);
             break;
         case ELLIPSE:
-            Ellipse(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, abs(currentY - startY) / 2, selectedColor);
+            DrawEllipse(tempCanvas, centerX, centerY, width / 2, height / 2, selectedColor);
             break;
         case LINE:
             DrawLine(m, startX, startY, currentX, currentY, selectedColor);
             break;
         case CIRCLE:
-            Circle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            DrawCircle(m, centerX, centerY, radius, selectedColor);
             break;
         case FILLED_CIRCLE:
-            FillCircle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
+            DrawFilledCircle(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 2, selectedColor);
             break;
         case TRIANGLE:
             DrawTriangle(m, startX, startY, currentX, startY, (startX + currentX) / 2, currentY, selectedColor);
             break;
         case PLUS_MARK:
-            MarkPlus(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
+            DrawPlusMark(m, (startX + currentX) / 2, (startY + currentY) / 2, abs(currentX - startX) / 4, selectedColor);
             break;
         default:
             break;
         }
 
-        // Geçici tuvali tamamen beyaza çevir
         ClearTemporaryCanvas();
-        DisplayImage(FRM1, m); // Ana canvas'ı ekrana yansıt
+        DisplayImage(FRM1, m);
     }
 
     prevX = -1;
     prevY = -1;
 }
+
 
 
 // Fare Olaylarını Ayarlama
@@ -486,10 +616,12 @@ void InitializeCanvas() {
     CreateMatrix(tempCanvas, canvasWidth, canvasHeight, 3, ICB_UCHAR);
     FillRect(tempCanvas, 0, 0, canvasWidth, canvasHeight, 0xFFFFFF);
 
-    // Alpha kanalını sıfırla
+    // Geçici canvas'ın tamamını tam şeffaf beyaza ayarla
     for (int y = 0; y < tempCanvas.Y(); ++y) {
         for (int x = 0; x < tempCanvas.X(); ++x) {
-            tempCanvas.B(x, y, 3) = 0xFF; // Tam opak
+            tempCanvas.B(x, y, 0) = 0xFF; // Mavi
+            tempCanvas.B(x, y, 1) = 0xFF; // Yeşil
+            tempCanvas.B(x, y, 2) = 0xFF; // Kırmızı
         }
     }
 
@@ -497,6 +629,7 @@ void InitializeCanvas() {
     FRM1 = ICG_FrameMedium(frameOffsetX, frameOffsetY, canvasWidth, canvasHeight);
     DisplayImage(FRM1, m);
 }
+
 
 void NewFunc() {
     ICG_DestroyWidget(FRM1);
