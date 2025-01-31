@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <commdlg.h> // Save file dialog için
 #include <iostream> 
-
+#include <mutex> // Mutex için
 
 // Global değişkenler
 ICBYTES m;               // Çizim alanı
@@ -17,12 +17,15 @@ HANDLE hThread;      // Çizim iş parçacığı
 DWORD threadID;      // İş parçacığı kimliği
 bool stopDrawing = false; // İş parçacığının durumu
 
+std::mutex drawMutex;  // Çizim işlemi için mutex
+std::mutex threadMutex; // **Tüm thread işlemlerini koruyan mutex**
+
 int SLE1;               // Kademe kutucuğunun bağlı olduğu metin kutusu
 int RTrackBar; // Renk kademeleri için track barlar
 int selectedColor = 0x000000; // Siyah
 int ColorPreviewFrame; // Renk önizleme çerçevesi
 ICBYTES ColorPreview;  // Renk önizleme alanı için bir matris
-
+ICBYTES saveIcon;
 int MouseLogBox; // Fare hareketlerini göstermek için metin kutusu
 
 int frameOffsetX = 50; // Çerçeve X başlangıç konumu
@@ -64,6 +67,7 @@ void FreeThreadSlot(HANDLE hThread) {
     }
 }
 
+
 // Çizim Alanını Temizle
 void ClearCanvas() {
     FillRect(m, 0, 0, 800, 600, 0xFFFFFF);
@@ -90,7 +94,7 @@ void UpdateLineThickness(int value) {
 }
 
 void CreateThicknessTrackbar() {
-    ICG_TrackBarH(700, 30, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluğu
+    ICG_TrackBarH(700, 15, 200, 30, UpdateLineThickness); // Trackbar pozisyonu ve uzunluğu
 }
 
 void EraserMode() {
@@ -310,60 +314,49 @@ void FillTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y
     if (y1 > y3) { Swap(x1, x3); Swap(y1, y3); }
     if (y2 > y3) { Swap(x2, x3); Swap(y2, y3); }
 
-    auto DrawLine = [&](int x0, int y0, int x1, int y1) {
-        int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        int err = dx + dy;
+    // Üçgenin yüksekliği
+    int totalHeight = y3 - y1;
 
-        while (true) {
-            if (x0 >= 0 && x0 < canvas.X() && y0 >= 0 && y0 < canvas.Y()) {
-                canvas.B(x0, y0, 0) = color & 0xFF;
-                canvas.B(x0, y0, 1) = (color >> 8) & 0xFF;
-                canvas.B(x0, y0, 2) = (color >> 16) & 0xFF;
+    // Alt yarıyı doldur
+    for (int i = 0; i <= y2 - y1; i++) {
+        int segmentHeight = y2 - y1 + 1;
+        float alpha = (float)i / totalHeight;
+        float beta = (float)i / segmentHeight;
+
+        int startX = x1 + (x3 - x1) * alpha;
+        int endX = x1 + (x2 - x1) * beta;
+
+        if (startX > endX) Swap(startX, endX);
+
+        // Yatay çizgi çiz
+        for (int x = startX; x <= endX; x++) {
+            if (x >= 0 && x < canvas.X() && (y1 + i) >= 0 && (y1 + i) < canvas.Y()) {
+                canvas.B(x, y1 + i, 0) = color & 0xFF;
+                canvas.B(x, y1 + i, 1) = (color >> 8) & 0xFF;
+                canvas.B(x, y1 + i, 2) = (color >> 16) & 0xFF;
             }
-            if (x0 == x1 && y0 == y1) break;
-            int e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
         }
-        };
-
-    auto FillFlatBottomTriangle = [&](int x1, int y1, int x2, int y2, int x3, int y3) {
-        float invslope1 = (float)(x2 - x1) / (y2 - y1);
-        float invslope2 = (float)(x3 - x1) / (y3 - y1);
-        float curx1 = x1, curx2 = x1;
-
-        for (int scanlineY = y1; scanlineY <= y2; scanlineY++) {
-            DrawLine((int)curx1, scanlineY, (int)curx2, scanlineY);
-            curx1 += invslope1;
-            curx2 += invslope2;
-        }
-        };
-
-    auto FillFlatTopTriangle = [&](int x1, int y1, int x2, int y2, int x3, int y3) {
-        float invslope1 = (float)(x3 - x1) / (y3 - y1);
-        float invslope2 = (float)(x3 - x2) / (y3 - y2);
-        float curx1 = x3, curx2 = x3;
-
-        for (int scanlineY = y3; scanlineY >= y1; scanlineY--) {
-            DrawLine((int)curx1, scanlineY, (int)curx2, scanlineY);
-            curx1 -= invslope1;
-            curx2 -= invslope2;
-        }
-        };
-
-    if (y2 == y3) {
-        FillFlatBottomTriangle(x1, y1, x2, y2, x3, y3);
     }
-    else if (y1 == y2) {
-        FillFlatTopTriangle(x1, y1, x2, y2, x3, y3);
-    }
-    else {
-        int x4 = x1 + (float)(y2 - y1) / (y3 - y1) * (x3 - x1);
-        int y4 = y2;
 
-        FillFlatBottomTriangle(x1, y1, x2, y2, x4, y4);
-        FillFlatTopTriangle(x2, y2, x4, y4, x3, y3);
+    // Üst yarıyı doldur
+    for (int i = 0; i <= y3 - y2; i++) {
+        int segmentHeight = y3 - y2 + 1;
+        float alpha = (float)(y2 - y1 + i) / totalHeight;
+        float beta = (float)i / segmentHeight;
+
+        int startX = x1 + (x3 - x1) * alpha;
+        int endX = x2 + (x3 - x2) * beta;
+
+        if (startX > endX) Swap(startX, endX);
+
+        // Yatay çizgi çiz
+        for (int x = startX; x <= endX; x++) {
+            if (x >= 0 && x < canvas.X() && (y2 + i) >= 0 && (y2 + i) < canvas.Y()) {
+                canvas.B(x, y2 + i, 0) = color & 0xFF;
+                canvas.B(x, y2 + i, 1) = (color >> 8) & 0xFF;
+                canvas.B(x, y2 + i, 2) = (color >> 16) & 0xFF;
+            }
+        }
     }
 }
 
@@ -531,22 +524,19 @@ void ClearTemporaryCanvas() {
 }
 
 HANDLE* GetAvailableThreadSlot() {
-    while (true) {  // **Thread slotu boşalana kadar bekle**
+    while (true) {
         for (int i = 0; i < MAX_THREADS; i++) {
             if (!threadActive[i] || WaitForSingleObject(threadPool[i], 0) == WAIT_OBJECT_0) {
                 if (threadPool[i]) {
-                    CloseHandle(threadPool[i]);  // **Bitmiş thread’i temizle**
+                    CloseHandle(threadPool[i]);
                 }
                 threadActive[i] = true;
-                return &threadPool[i];  // **Boş bir slot döndür**
+                return &threadPool[i];
             }
         }
-        Sleep(10);  // **CPU’yu rahatlatmak için kısa bir bekleme yap**
+        Sleep(10);
     }
 }
-
-
-
 
 
 
@@ -554,19 +544,15 @@ HANDLE* GetAvailableThreadSlot() {
 DWORD WINAPI DrawFreehandThread(LPVOID lpParam) {
     DrawParams* params = (DrawParams*)lpParam;
 
-    if (params->mode == NORMAL) {
-        DrawLine(m, params->startX, params->startY, params->endX, params->endY, params->color);
-        DisplayImage(FRM1, m);
-    }
+    threadMutex.lock(); // **Kritik bölgeye giriş**
+    DrawLine(m, params->startX, params->startY, params->endX, params->endY, params->color);
+    DisplayImage(FRM1, m);
+    threadMutex.unlock(); // **Kritik bölgeden çıkış**
 
-    delete params;  // **Bellek temizliği**
+    delete params;
     return 0;
 }
 
-
-
-
-// Serbest çizimi başlatan fonksiyon
 void StartFreehandDrawingThread(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     HANDLE* hSlot = GetAvailableThreadSlot();
     if (!hSlot) return;
@@ -575,19 +561,58 @@ void StartFreehandDrawingThread(ICBYTES& canvas, int x1, int y1, int x2, int y2,
 
     *hSlot = CreateThread(NULL, 0, DrawFreehandThread, params, 0, NULL);
     if (*hSlot) {
-        SetThreadPriority(*hSlot, THREAD_PRIORITY_LOWEST);  // **Düşük öncelikli çalıştır**
+        SetThreadPriority(*hSlot, THREAD_PRIORITY_LOWEST);
     }
     else {
-        delete params;  // Bellek sızıntısını önle
+        delete params;
     }
 }
 
+DWORD WINAPI EraseThread(LPVOID lpParam) {
+    DrawParams* params = (DrawParams*)lpParam;
 
+    threadMutex.lock(); // **Thread güvenliği sağla**
 
+    // **Silme işlemi (Beyaz renge döndür)**
+    for (int i = -lineThickness / 2; i <= lineThickness / 2; ++i) {
+        for (int j = -lineThickness / 2; j <= lineThickness / 2; ++j) {
+            int px = params->endX + i;
+            int py = params->endY + j;
+            if (px >= 0 && px < m.X() && py >= 0 && py < m.Y()) {
+                m.B(px, py, 0) = 0xFF;
+                m.B(px, py, 1) = 0xFF;
+                m.B(px, py, 2) = 0xFF;
+            }
+        }
+    }
+
+    DisplayImage(FRM1, m);
+    threadMutex.unlock(); // **Thread’i serbest bırak**
+
+    delete params; // **Bellek sızıntısını önlemek için serbest bırak**
+    return 0;
+}
+
+void StartEraseThread(ICBYTES& canvas, int x, int y) {
+    HANDLE* hSlot = GetAvailableThreadSlot();
+    if (!hSlot) return;
+
+    DrawParams* params = new DrawParams{ &canvas, ERASER, 0, 0, x, y, 0xFFFFFF };
+
+    *hSlot = CreateThread(NULL, 0, EraseThread, params, 0, NULL);
+    if (*hSlot) {
+        SetThreadPriority(*hSlot, THREAD_PRIORITY_LOWEST);
+    }
+    else {
+        delete params;
+    }
+}
 
 // Thread fonksiyonu - Her şekli farklı bir thread içinde çizecek
 DWORD WINAPI DrawThread(LPVOID lpParam) {
     DrawParams* params = (DrawParams*)lpParam;
+
+    threadMutex.lock();
 
     switch (params->mode) {
     case LINE:
@@ -618,7 +643,8 @@ DWORD WINAPI DrawThread(LPVOID lpParam) {
         break;
     }
 
-    delete params;  // Bellek sızıntısını önlemek için parametreyi serbest bırak
+    threadMutex.unlock();
+    delete params;
     return 0;
 }
 
@@ -630,13 +656,12 @@ void StartDrawingThread(ICBYTES& canvas, Mode mode, int x1, int y1, int x2, int 
 
     *hSlot = CreateThread(NULL, 0, DrawThread, params, 0, NULL);
     if (*hSlot) {
-        SetThreadPriority(*hSlot, THREAD_PRIORITY_LOWEST);  // **Düşük öncelikli çalıştır**
+        SetThreadPriority(*hSlot, THREAD_PRIORITY_LOWEST);
     }
     else {
-        delete params;  // **Bellek sızıntısını önlemek için ekledik**
+        delete params;
     }
 }
-
 
 
 void LogMouseAction(const char* action, int x, int y) {
@@ -680,19 +705,7 @@ void OnMouseMove(int x, int y) {
 
     if (activeMode == ERASER) {
         if (prevX >= 0 && prevY >= 0) {
-            for (int i = -lineThickness / 2; i <= lineThickness / 2; ++i) {
-                for (int j = -lineThickness / 2; j <= lineThickness / 2; ++j) {
-                    int px = currentX + i;
-                    int py = currentY + j;
-
-                    if (px >= 0 && px < m.X() && py >= 0 && py < m.Y()) {
-                        m.B(px, py, 0) = 0xFF;
-                        m.B(px, py, 1) = 0xFF;
-                        m.B(px, py, 2) = 0xFF;
-                    }
-                }
-            }
-            UpdateCombinedCanvas();
+            StartEraseThread(m, currentX, currentY); // **Silme işlemi artık thread ile yapılacak**
         }
         prevX = currentX;
         prevY = currentY;
@@ -813,6 +826,21 @@ void InitializeCanvas() {
     DisplayImage(FRM1, m);
 }
 
+void ResizeImage(ICBYTES& source, ICBYTES& destination, int newWidth, int newHeight) {
+    CreateMatrix(destination, newWidth, newHeight, 3, ICB_UCHAR);
+
+    for (int y = 0; y < newHeight; ++y) {
+        for (int x = 0; x < newWidth; ++x) {
+            int srcX = x * source.X() / newWidth;
+            int srcY = y * source.Y() / newHeight;
+
+            destination.B(x, y, 0) = source.B(srcX, srcY, 0);
+            destination.B(x, y, 1) = source.B(srcX, srcY, 1);
+            destination.B(x, y, 2) = source.B(srcX, srcY, 2);
+        }
+    }
+}
+
 
 void NewFunc() {
     ICG_DestroyWidget(FRM1);
@@ -830,7 +858,15 @@ void OpenFunc() {
 
     ICBYTES dosyol, resim;
     ReadImage(OpenFileMenu(dosyol, "JPEG\0*.JPG\0"), resim);
-    DisplayImage(FRM1, resim);
+    // **Resmi ana tuval (m) üzerine ölçekleyerek yerleştir**
+    ResizeImage(resim, m, m.X(), m.Y());  // Resmi tuval boyutuna ayarla
+
+    // **Tuvali güncelle ve ekrana çiz**
+    ManualCopy(m, backBuffer);
+    DisplayImage(FRM1, backBuffer);
+
+    // Hafızayı temizle
+    Free(resim);
 }
 
 // Bitmap'i dosyaya kaydetme fonksiyonu
@@ -963,7 +999,7 @@ void MarkPlus() {
 void CreateModeButtons() {
     static ICBYTES pencilIcon;
     CreateImage(pencilIcon, 75, 30, ICB_UINT);
-    pencilIcon = 0xFFFFFF;  // Arka plan beyaz
+    FillRect(pencilIcon, 0, 0, 75, 30, 0xFFFFFF);  // Arka plan beyaz
 
     // **Kalem Gövdesi (Sarı)**
     int x1 = 15, y1 = 5;
@@ -984,24 +1020,36 @@ void CreateModeButtons() {
         Line(pencilIcon, x1 + 5, y1 + 5 + (i * 5), x2 - 5, y1 + 5 + (i * 5), 0x000000);
     }
 
-    // **Uç Kısmı (Sağ Tarafta Üçgen - Siyah)**
+    // **Kalem Ucu (Dolu Üçgen - Siyah)**
     int ux1 = 50, uy1 = 5;
     int ux2 = 70, uy2 = 15;
     int ux3 = 50, uy3 = 25;
-    FillTriangle(pencilIcon, ux1, uy1, ux2, uy2, ux3, uy3, 0x000000);  // Siyah uç
 
-    // **Uç Kenar Çizgisi (Gri)**
+    // **Üçgeni Doldur - Scan-line algoritması**
+    for (int y = uy1; y <= uy3; y++) {
+        int startX = ux1 + ((y - uy1) * (ux2 - ux1)) / (uy2 - uy1);
+        int endX = ux1 + ((y - uy1) * (ux3 - ux1)) / (uy3 - uy1);
+
+        if (startX > endX) std::swap(startX, endX); // Koordinatları doğru sıraya koy
+
+        for (int x = startX; x <= endX; x++) {
+            if (x >= 0 && x < 75 && y >= 0 && y < 30) {  // Buton sınırları içinde kal
+                pencilIcon.B(x, y, 0) = 0x00;  // Mavi (RGB) - Siyah
+                pencilIcon.B(x, y, 1) = 0x00;  // Yeşil (RGB) - Siyah
+                pencilIcon.B(x, y, 2) = 0x00;  // Kırmızı (RGB) - Siyah
+            }
+        }
+    }
+
+    // **Çerçeve Çiz (Gri Kenarlık)**
     Line(pencilIcon, ux1, uy1, ux2, uy2, 0x808080);
     Line(pencilIcon, ux2, uy2, ux3, uy3, 0x808080);
     Line(pencilIcon, ux3, uy3, ux1, uy1, 0x808080);
 
-    // **Uç Çizgisi (Beyaz)**
-    Line(pencilIcon, ux1 + 1, uy1 + 1, ux3 - 1, uy3 - 1, 0xFFFFFF);
 
     // **Butona ekleme**
-    int pencilButton = ICG_BitmapButton(700, 70, 75, 30, NormalMode);
+    int pencilButton = ICG_BitmapButton(700, 55, 75, 30, NormalMode);
     SetButtonBitmap(pencilButton, pencilIcon);
-
 }
 
 void ToggleFullScreen() {
@@ -1170,19 +1218,19 @@ void CreateDrawingButtons() {
     BTNERASER = ICG_BitmapButton(650, 10, 40, 40, EraserMode);
     SetButtonBitmap(BTNERASER, eraserIcon);
 
-
+    //Bitmap Buton Ekleme 
+    int SaveButton;
+     
+    
+    SaveButton = ICG_BitmapButton(900, 10, 45, 45, SaveFunc);
+    SetButtonBitmap(SaveButton, saveIcon);
 }
 
 // Ana GUI Fonksiyonu
 void ICGUI_main() {
     ICGUI_Create();  // GUI başlat
 
-    //Bitmap Buton Ekleme 
-    int SaveButton;
-    static ICBYTES saveIcon;
-    ReadImage("save.bmp", saveIcon);
-    SaveButton = ICG_BitmapButton(900, 10, 40, 40, SaveFunc);
-    SetButtonBitmap(SaveButton, saveIcon);
+    ReadImage("savee.bmp", saveIcon);
 
     CreateMenuItems();          // Menüleri oluştur
     InitializeCanvas();    // Çizim alanını başlat
@@ -1197,6 +1245,7 @@ void ICGUI_main() {
     MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
 
     // Clear butonu 
-    ICG_Button(900, 60, 80, 30, "Clear", ClearCanvas);
+    ICG_Button(870, 60, 80, 30, "Clear", ClearCanvas);
+
 
 }
