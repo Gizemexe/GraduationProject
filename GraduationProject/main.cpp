@@ -110,19 +110,12 @@ void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
     int sy = (y1 < y2) ? 1 : -1;
     int err = dx - dy;
 
-    auto SetPixel = [&](int x, int y) {
-        if (x >= 0 && x < canvas.X() && y >= 0 && y < canvas.Y()) {
-            canvas.B(x, y, 0) = color & 0xFF;
-            canvas.B(x, y, 1) = (color >> 8) & 0xFF;
-            canvas.B(x, y, 2) = (color >> 16) & 0xFF;
-        }
-        };
-
     while (true) {
-        for (int i = -lineThickness / 2; i <= lineThickness / 2; i++) {
-            for (int j = -lineThickness / 2; j <= lineThickness / 2; j++) {
-                SetPixel(x1 + i, y1 + j);
-            }
+        if (x1 >= 0 && x1 < canvas.X() && y1 >= 0 && y1 < canvas.Y()) {
+            canvas.B(x1, y1, 2) = (color >> 16) & 0xFF; // **Kırmızı Kanalı**
+            canvas.B(x1, y1, 1) = (color >> 8) & 0xFF;  // **Yeşil Kanalı**
+            canvas.B(x1, y1, 0) = (color) & 0xFF;       // **Mavi Kanalı**
+            canvas.B(x1, y1, 3) = 0x00;                 // **Alpha tam opak (255)**
         }
 
         if (x1 == x2 && y1 == y2) break;
@@ -360,7 +353,6 @@ void FillTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y
     }
 }
 
-
 // Kademe Kutucuğu :Renk Bileşeni Güncelleme
 void UpdateColor(int kademe) {
     // Örnek olarak basit bir RGB renk paleti
@@ -384,22 +376,21 @@ void UpdatePreview() {
 }
 
 int ConvertToBGR(int color) {
-    return ((color & 0xFF) << 16) | (color & 0xFF00) | ((color >> 16) & 0xFF);
+    return ((color & 0xFF) << 16) | ((color & 0xFF00)) | ((color >> 16) & 0xFF);
 }
 
 
-void SelectColor1() { selectedColor = ConvertToBGR(0x000000); UpdatePreview(); } // Siyah
-void SelectColor2() { selectedColor = ConvertToBGR(0x6d6d6d); UpdatePreview(); } // Gri
-void SelectColor3() { selectedColor = ConvertToBGR(0xFF0000); UpdatePreview(); } // Kırmızı
-void SelectColor4() { selectedColor = ConvertToBGR(0x500000); UpdatePreview(); } // Koyu Kırmızı
-void SelectColor5() { selectedColor = ConvertToBGR(0xfc4e03); UpdatePreview(); } // Turuncu
-void SelectColor6() { selectedColor = ConvertToBGR(0xfce803); UpdatePreview(); } // Sarı
-void SelectColor7() { selectedColor = ConvertToBGR(0x00FF00); UpdatePreview(); } // Yeşil
-void SelectColor8() { selectedColor = ConvertToBGR(0x00c4e2); UpdatePreview(); } // Açık Mavi
-void SelectColor9() { selectedColor = ConvertToBGR(0x0919ca); UpdatePreview(); } // Mavi
-void SelectColor10() { selectedColor = ConvertToBGR(0x8209c0); UpdatePreview(); } // Mor
 
-
+void SelectColor1() { selectedColor = 0x000000; UpdatePreview(); } // Siyah
+void SelectColor2() { selectedColor = 0x6d6d6d; UpdatePreview(); } // Gri
+void SelectColor3() { selectedColor = 0xFF0000; UpdatePreview(); } // Kırmızı
+void SelectColor4() { selectedColor = 0x500000; UpdatePreview(); } // Koyu Kırmızı
+void SelectColor5() { selectedColor = 0xfc4e03; UpdatePreview(); } // Turuncu
+void SelectColor6() { selectedColor = 0xfce803; UpdatePreview(); } // Sarı
+void SelectColor7() { selectedColor = 0x00FF00; UpdatePreview(); } // Yeşil
+void SelectColor8() { selectedColor = 0x00c4e2; UpdatePreview(); } // Açık Mavi
+void SelectColor9() { selectedColor = 0x0919ca; UpdatePreview(); } // Mavi
+void SelectColor10() { selectedColor = 0x8209c0; UpdatePreview(); } // Mor
 
 void CreateColorButtons() {
 
@@ -465,7 +456,7 @@ void InitializeColorPreview() {
     RTrackBar = ICG_TrackBarH(10, 50, 200, 30, UpdateColor);
     // Çerçeve oluştur
     ColorPreviewFrame = ICG_FrameMedium(220, 10, 70, 70);
-    ColorPreview = 0xff00;
+    ColorPreview = 0x000000;
     DisplayImage(ColorPreviewFrame, ColorPreview);
 }
 
@@ -858,8 +849,20 @@ void OpenFunc() {
 
     ICBYTES dosyol, resim;
     ReadImage(OpenFileMenu(dosyol, "JPEG\0*.JPG\0"), resim);
-    // **Resmi ana tuval (m) üzerine ölçekleyerek yerleştir**
+    
+    if (resim.X() == 0 || resim.Y() == 0) {
+        ICG_printf(MouseLogBox, "Error: Image could not be loaded!\n");
+        return;
+    }
+
     ResizeImage(resim, m, m.X(), m.Y());  // Resmi tuval boyutuna ayarla
+
+    // **Alpha kanalını düzeltelim!**
+    for (int y = 0; y < m.Y(); y++) {
+        for (int x = 0; x < m.X(); x++) {
+            m.B(x, y, 3) = 0x00; // **Alpha tamamen şeffaf olacak!**
+        }
+    }
 
     // **Tuvali güncelle ve ekrana çiz**
     ManualCopy(m, backBuffer);
@@ -1242,7 +1245,13 @@ void ICGUI_main() {
     CreateDrawingButtons(); // Çizim butonlarını oluştur
 
     // Mouse hareketlerini izlemek için metin kutusu
-    MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
+    //MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
+
+    FillRect(m, 10, 10, 100, 100, 0xFF0000);  // **Kırmızı Olmalı**
+    FillRect(m, 120, 10, 100, 100, 0x00FF00); // **Yeşil Olmalı**
+    FillRect(m, 230, 10, 100, 100, 0x0000FF); // **Mavi Olmalı**
+    DisplayImage(FRM1, m);
+
 
     // Clear butonu 
     ICG_Button(870, 60, 80, 30, "Clear", ClearCanvas);
