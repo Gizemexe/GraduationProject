@@ -93,8 +93,6 @@ void ClearCanvas() {
     ICG_printf(MouseLogBox, "ClearCanvas(): Tuval sıfırlandı ve beyaza ayarlandı.\n");
 }
 
-
-
 // GUI Başlatma Fonksiyonu
 void ICGUI_Create() {
     ICG_MWSize(1000, 600);
@@ -157,8 +155,6 @@ void DrawLine(ICBYTES& canvas, int x1, int y1, int x2, int y2, int color) {
         }
     }
 }
-
-
 
 void DrawTriangle(ICBYTES& canvas, int x1, int y1, int x2, int y2, int x3, int y3, int color) {
     DrawLine(canvas, x1, y1, x2, y2, color);
@@ -456,7 +452,6 @@ void InitializeColorPreview() {
     DisplayImage(ColorPreviewFrame, ColorPreview);
 }
 
-
 void ManualCopy(ICBYTES& source, ICBYTES& destination) {
     // Boyutları kontrol et
     if (source.X() != destination.X() || source.Y() != destination.Y()) {
@@ -496,7 +491,6 @@ void UpdateCombinedCanvas() {
     DisplayImage(FRM1, backBuffer);
 }
 
-
 void ClearTemporaryCanvas() {
     for (int y = 0; y < tempCanvas.Y(); y++) {
         for (int x = 0; x < tempCanvas.X(); x++) {
@@ -507,7 +501,6 @@ void ClearTemporaryCanvas() {
         }
     }
 }
-
 
 HANDLE* GetAvailableThreadSlot() {
     int attempts = 100;  // En fazla 100 kez dene
@@ -525,7 +518,6 @@ HANDLE* GetAvailableThreadSlot() {
     }
     return nullptr;  // Eğer thread bulunamazsa NULL döndür
 }
-
 
 // Serbest çizim için thread fonksiyonu
 DWORD WINAPI DrawFreehandThread(LPVOID lpParam) {
@@ -580,7 +572,6 @@ DWORD WINAPI EraseThread(LPVOID lpParam) {
     delete params; // **Bellek sızıntısını önlemek için serbest bırak**
     return 0;
 }
-
 
 void StartEraseThread(ICBYTES& canvas, int x, int y) {
     HANDLE* hSlot = GetAvailableThreadSlot();
@@ -652,7 +643,6 @@ void StartDrawingThread(ICBYTES& canvas, Mode mode, int x1, int y1, int x2, int 
     }
 }
 
-
 void LogMouseAction(const char* action, int x, int y) {
     if (x < 0 || x >= m.X() || y < 0 || y >= m.Y()) {
         ICG_printf(MouseLogBox, "%s - Out of bounds - X: %d, Y: %d\n", action, x, y);
@@ -661,7 +651,6 @@ void LogMouseAction(const char* action, int x, int y) {
         ICG_printf(MouseLogBox, "%s - X: %d, Y: %d\n", action, x, y);
     }
 }
-
 
 // Sol Fare Tuşuna Basıldığında
 void OnMouseLDown() {
@@ -757,7 +746,6 @@ void OnMouseMove(int x, int y) {
         UpdateCombinedCanvas();
     }
 }
-
 
 // Sol Fare Tuşunu Bıraktığınızda
 void OnMouseLUp() {
@@ -1251,7 +1239,6 @@ void ICGUI_main() {
 
     CreateMenuItems();          // Menüleri oluştur
     InitializeCanvas();    // Çizim alanını başlat
-    //ClearCanvas();
     InitializeColorPreview(); // Renk Paletini Ekle
     CreateColorButtons();       // Renk seçici butonları ekle
     CreateThicknessTrackbar();  // Çizgi kalınlığı için trackbar ekle
@@ -1260,13 +1247,7 @@ void ICGUI_main() {
     CreateDrawingButtons(); // Çizim butonlarını oluştur
 
     // Mouse hareketlerini izlemek için metin kutusu
-    MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
-
-    FillRect(m, 10, 10, 100, 100, 0xFF0000);  // **Kırmızı Olmalı**
-    FillRect(m, 120, 10, 100, 100, 0x00FF00); // **Yeşil Olmalı**
-    FillRect(m, 230, 10, 100, 100, 0x0000FF); // **Mavi Olmalı**
-    DisplayImage(FRM1, m);
-
+    //MouseLogBox = ICG_MLEditSunken(10, 700, 600, 80, "", SCROLLBAR_V); // 600x80 boyutunda metin kutusu
 
     ICG_Button(870, 60, 80, 30, "Clear", ClearCanvas);
     
