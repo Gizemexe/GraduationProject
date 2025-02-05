@@ -27,7 +27,6 @@ When the user releases the left mouse button, the drawing is merged into the mai
 This structure optimizes the drawing experience by providing instant feedback to the user.
 
 ![image](https://github.com/user-attachments/assets/27d1fcfc-62c7-4ee3-89b2-35857228d650)
-
 <p>🔹 Figure 1. Paint Application First Look</p>
 
 ### 📌 Line Drawing Algorithm
@@ -91,7 +90,6 @@ A user-friendly and intuitive interface has been designed to make the drawing ex
 <p>✔ <b>Line Thickness Adjustment:</b> Adjust line thickness dynamically using a trackbar.</p>
 
 ![image](https://github.com/user-attachments/assets/f9e05bd2-4264-434e-a8e3-b33a3ea50e87)
-
 <p>🔹 Figure 2. User Interface with Tools</p>
 
 ### 🖊️ Pencil Tool
