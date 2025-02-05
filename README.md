@@ -141,7 +141,7 @@ cd paint-app
 <p>Compile and run </p>
 
 ### 🔍 References
-<p>[1] Baykal, I. C. (2024). ICBYTES: A Simplified C++ Library. [ICBYTES](https://github.com/cembaykal/ICBYTES)</p>
+<p>[1] Baykal, I. C. (2024). ICBYTES: A Simplified C++ Library. </p> 
 <p>[2] Foley, J., van Dam, A., Feiner, S., & Hughes, J. (1996). Computer Graphics: Principles and Practice.</p>
 <p>[3] Bresenham, J. E. (1965). Algorithm for computer control of a digital plotter.</p>
 
