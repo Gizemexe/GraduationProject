@@ -2,7 +2,7 @@
 ## 📝 Introduction
 <p>Real-time drawing applications play a crucial role in user experience in computer graphics. In traditional drawing applications, each pixel needs to be manipulated individually, which can result in performance issues and increased latency. Especially in high-resolution environments and complex geometric operations, data processing times can negatively impact the overall user interaction.</p>
 
-<p>This project focuses on optimizing geometric shape rendering and freehand drawing using **C++** and the **ICBYTES** Library. By implementing a multi-threaded architecture and parallel processing techniques, the goal is to significantly improve the drawing performance and user experience.</p>
+<p>This project focuses on optimizing geometric shape rendering and freehand drawing using <b>C++</b> and the <b>ICBYTES</b> Library. By implementing a multi-threaded architecture and parallel processing techniques, the goal is to significantly improve the drawing performance and user experience.</p>
 
 <p>This project is a simple Paint application developed using ICBYTES. Users can free-draw using various drawing tools, draw different shapes, and save their drawings.</p>
 
