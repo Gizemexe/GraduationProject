@@ -126,7 +126,7 @@ A user-friendly and intuitive interface has been designed to make the drawing ex
 **Operating System:** Windows 10 or later
 **Development Environment:** Visual Studio 2022
 **Required Libraries:** 
-```icb_gui.h, ic_media.h, icbytes.h from ICBYTES Library```
+```icb_gui.h, ic_media.h, icbytes.h from ICBYTES Library```  [You can download it here](https://github.com/cembaykal/ICBYTES)
 
 ### 🛠️ Installation Guide
 
